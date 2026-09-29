@@ -1,2 +1,2 @@
-# escape-plan
+# Escape-plan
 Escape plan online game
