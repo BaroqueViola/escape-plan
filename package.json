@@ -1,0 +1,23 @@
+{
+  "name": "escape-plan",
+  "version": "1.0.0",
+  "description": "escape plan game for netcentric course",
+  "homepage": "https://github.com/BaroqueViola/escape-plan#readme",
+  "bugs": {
+    "url": "https://github.com/BaroqueViola/escape-plan/issues"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/BaroqueViola/escape-plan.git"
+  },
+  "license": "ISC",
+  "author": "",
+  "type": "module",
+  "main": "index.js",
+  "scripts": {
+    "test": "echo \"Error: no test specified\" && exit 1"
+  },
+  "dependencies": {
+    "express": "^5.2.1"
+  }
+}
