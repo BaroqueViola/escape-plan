@@ -6,13 +6,19 @@ import express from 'express';
 import { createServer } from 'http';
 import { Server } from 'socket.io';
 import path from 'path';
+import { Nickname } from './schema.js';
 
 // Socket.IO events. Add new events here so TypeScript can check them.
 interface ServerToClientEvents {
-  online: (count: number) => void;
+  'lobby:state': (players: string[]) => void;
+  'player:welcome': (message: string) => void;
+  'player:rejected': (reason: string) => void;
 }
 
-interface ClientToServerEvents {}
+// Client data is `unknown` until validated with Zod
+interface ClientToServerEvents {
+  'player:join': (nickname: unknown) => void;
+}
 
 const PORT = Number(process.env.PORT) || 3000;
 
@@ -31,16 +37,41 @@ app.get('/', (req, res) => {
   res.send('Hello world');
 });
 
-let online = 0;
+// Joined players: socket.id -> nickname
+const players = new Map<string, string>();
 
 // Runs once per client; `socket` is that one client
 io.on('connection', (socket) => {
-  online++;
-  io.emit('online', online);
+  // Show the new client who's already in the lobby
+  socket.emit('lobby:state', [...players.values()]);
+
+  socket.on('player:join', (raw) => {
+    const result = Nickname.safeParse(raw);
+    if (!result.success) {
+      socket.emit('player:rejected', result.error.issues[0]?.message ?? 'Invalid nickname');
+      return;
+    }
+    const nickname = result.data;
+
+    if (players.has(socket.id)) {
+      socket.emit('player:rejected', 'You have already joined');
+      return;
+    }
+    if ([...players.values()].includes(nickname)) {
+      socket.emit('player:rejected', 'That nickname is already taken');
+      return;
+    }
+
+    players.set(socket.id, nickname);
+    socket.emit('player:welcome', `Welcome, ${nickname}.`);
+    io.emit('lobby:state', [...players.values()]);
+  });
 
   socket.on('disconnect', () => {
-    online--;
-    io.emit('online', online);
+    // delete() returns true only if this client had joined
+    if (players.delete(socket.id)) {
+      io.emit('lobby:state', [...players.values()]);
+    }
   });
 });
 
