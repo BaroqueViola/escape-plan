@@ -4,6 +4,7 @@ import type { GameServer, GameSocket } from './events.js';
 import { Nickname } from './schema.js';
 import { players } from './state.js';
 import { printDashboard } from "./dashboard.js";
+import { matchmake } from './game.js';
 
 // Nicknames of everyone who has joined
 function lobbyNames(): string[] {
@@ -37,6 +38,7 @@ export function registerLobby(io: GameServer, socket: GameSocket): void {
     players.set(socket.id, nickname);
     socket.emit('player:welcome', `Welcome, ${nickname}.`);
     io.emit('lobby:state', lobbyNames());
+    matchmake(io); // two players waiting -> start a match
 
     // Printing out the players who joined
     printDashboard(io, `${nickname} joined`);

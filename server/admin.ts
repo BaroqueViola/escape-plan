@@ -1,9 +1,8 @@
 // Admin area: a separate '/admin' namespace that only the server operator can join.
 
-import { resetSession } from "@escape-plan/game-core";
 import type { GameServer } from './events.js';
 import { getDashboardState, printDashboard} from './dashboard.js';
-import { game } from "./state.js";
+import { resetGame } from './game.js';
 
 // Read the password from an environment variable; fall back to a default for local testing
 const ADMIN_PASSWORD = process.env.ADMIN_PASSWORD ?? 'admin123';
@@ -32,23 +31,12 @@ export function registerAdmin(io: GameServer): void {
       console.log(`\n[Admin] Admin disconnected (${socket.id})`);
     });
 
-    // Reset button
+    // Reset button: game.ts cancels the turn timers, sets scores to 0,
+    // sends server:reset to the players and starts a fresh match
     socket.on('admin:reset', (done) => {
-      // 1. Stop the turn timer so it can't fire after the reset
-      if (game.turnTimer !== null) {
-        clearTimeout(game.turnTimer);
-        game.turnTimer = null;
-      }
+      resetGame(io);
 
-      // 2. Clear the match and set both scores to 0 (keeps the same two players)
-      if (game.session !== null) {
-        game.session = resetSession(game.session);
-      }
-
-      // 3. Tell every player on the main namespace
-      io.emit('server:reset');
-
-      // 4. Log it, refresh the admin dashboard, and confirm to the admin who clicked
+      // Log it, refresh the admin dashboard, and confirm to the admin who clicked
       printDashboard(io, 'Admin reset the game');
       if (typeof done === 'function') {
         done(true);

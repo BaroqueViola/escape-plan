@@ -6,11 +6,14 @@ import express from 'express';
 import { createServer } from 'http';
 import { Server } from 'socket.io';
 import path from 'path';
+import { fileURLToPath } from 'url';
 import type { GameServer } from './events.js';
 import { registerLobby } from './lobby.js';
 import { registerAdmin} from "./admin.js";
+import { registerGame } from './game.js';
 
 const PORT = Number(process.env.PORT) || 3000;
+const __dirname = path.dirname(fileURLToPath(import.meta.url));
 
 const app = express();
 // Socket.IO needs a real HTTP server, not the Express app itself
@@ -20,7 +23,7 @@ const io: GameServer = new Server(httpServer, {
 });
 
 // Serve files from the client/ folder
-app.use(express.static(path.join(import.meta.dirname, '..', 'client')));
+app.use(express.static(path.join(__dirname, '..', 'client')));
 
 // Placeholder until client/index.html exists
 app.get('/', (req, res) => {
@@ -34,6 +37,7 @@ registerAdmin(io);
 // Runs once per client; each area adds its own event handlers
 io.on('connection', (socket) => {
   registerLobby(io, socket);
+  registerGame(io, socket);
 });
 
 // Use httpServer.listen, not app.listen, so Socket.IO is included
