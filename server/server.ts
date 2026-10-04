@@ -8,6 +8,7 @@ import { Server } from 'socket.io';
 import path from 'path';
 import type { GameServer } from './events.js';
 import { registerLobby } from './lobby.js';
+import { registerAdmin} from "./admin.js";
 
 const PORT = Number(process.env.PORT) || 3000;
 
@@ -25,6 +26,10 @@ app.use(express.static(path.join(import.meta.dirname, '..', 'client')));
 app.get('/', (req, res) => {
   res.send('Hello world');
 });
+
+// Admin namespace: set up once, not per player
+registerAdmin(io);
+
 
 // Runs once per client; each area adds its own event handlers
 io.on('connection', (socket) => {

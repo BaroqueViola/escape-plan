@@ -1,0 +1,90 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <title>Escape Plan – Admin</title>
+  <style>
+    body { font-family: system-ui, sans-serif; max-width: 480px; margin: 40px auto; padding: 0 16px; }
+    .error { color: #b00020; }
+  </style>
+</head>
+<body>
+  <h1>Escape Plan – Server Dashboard</h1>
+
+  <!-- Shown first: password form -->
+  <form id="login">
+    <input id="password" type="password" placeholder="Admin password" required>
+    <button type="submit">Log in</button>
+    <p id="error" class="error"></p>
+  </form>
+
+  <!-- Shown after a correct password -->
+  <section id="dashboard" hidden>
+    <p>Connected clients: <strong id="connected">0</strong></p>
+    <h2>Players</h2>
+    <ol id="players"></ol>
+    <h2>Game controls</h2>
+    <button id="reset" type="button">Reset game and scores</button>
+    <p id="reset-status"></p>
+  </section>
+
+  <!-- Socket.IO serves its own browser client at this address automatically -->
+  <script src="/socket.io/socket.io.js"></script>
+  <script>
+    const form = document.getElementById('login');
+    const passwordInput = document.getElementById('password');
+    const errorText = document.getElementById('error');
+    const dashboard = document.getElementById('dashboard');
+    const connectedEl = document.getElementById('connected');
+    const playersEl = document.getElementById('players');
+    const resetButton = document.getElementById('reset');
+    const resetStatus = document.getElementById('reset-status');
+
+    form.addEventListener('submit', (event) => {
+      event.preventDefault(); // stop the browser reloading the page
+      errorText.textContent = '';
+
+      // Connect to the /admin namespace, sending the password in the handshake
+      const socket = io('/admin', { auth: { password: passwordInput.value } });
+
+      socket.on('connect', () => {
+        form.hidden = true;
+        dashboard.hidden = false;
+      });
+
+      socket.on('connect_error', (err) => {
+        errorText.textContent = err.message; // e.g. "Wrong admin password"
+        socket.disconnect();                 // stop it retrying with the wrong password
+      });
+
+      socket.on('admin:dashboard', (state) => {
+        connectedEl.textContent = state.connected;
+
+        // Rebuild the list of names
+        playersEl.replaceChildren();
+        for (const name of state.players) {
+          const li = document.createElement('li');
+          li.textContent = name; // textContent, never innerHTML, so names can't inject HTML
+          playersEl.appendChild(li);
+        }
+        if (state.players.length === 0) {
+          playersEl.innerHTML = '<li><em>No players yet</em></li>';
+        }
+      });
+
+      // Reset button: ask the server to reset, then show the result
+      resetButton.onclick = () => {
+        if (!confirm('Reset the current game and both players\' scores?')) return;
+
+        resetButton.disabled = true;
+        socket.emit('admin:reset', (ok) => {
+          resetButton.disabled = false;
+          resetStatus.textContent = ok
+            ? `Game reset at ${new Date().toLocaleTimeString()}`
+            : 'Reset failed';
+        });
+      };
+    });
+  </script>
+</body>
+</html>
