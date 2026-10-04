@@ -14,3 +14,15 @@ export const Nickname = z
   });
 
 export type Nickname = z.infer<typeof Nickname>;
+
+// Direction for game:move
+export const Direction = z.enum(['up', 'down', 'left', 'right'], {
+  error: 'Direction must be up, down, left or right',
+});
+ 
+export type Direction = z.infer<typeof Direction>;
+ 
+// Answer to the rematch button: true = accept, false = decline
+export const RematchVote = z.boolean({ error: 'Vote must be true or false' });
+ 
+export type RematchVote = z.infer<typeof RematchVote>;
