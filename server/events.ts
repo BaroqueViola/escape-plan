@@ -14,6 +14,8 @@ export interface GameState {
   turnNickname: string | null; // null once the match is finished
   turnDeadline: number | null; // epoch ms on the server clock
   serverTime: number; // time left = turnDeadline - serverTime (no clock sync needed)
+  outcome: { winner: string; reason: 'capture' | 'escape' } | null;
+  rematchVotes: Record<string, boolean>;
 }
 
 export interface MatchInfo {

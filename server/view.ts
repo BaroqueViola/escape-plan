@@ -26,6 +26,8 @@ export function toGameState(session: Session, names: Names, now: number): GameSt
     turnNickname: m.status === 'active' ? nameOf(names, m.turn.playerId) : null,
     turnDeadline: m.status === 'active' ? m.turn.deadline : null,
     serverTime: now,
+    outcome: m.status === 'finished' ? { winner: nameOf(names, m.outcome.winner), reason: m.outcome.reason } : null,
+    rematchVotes: m.status === 'finished' ? toRematchVotes(session, names) : {},
   };
 }
 

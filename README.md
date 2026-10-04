@@ -1,7 +1,8 @@
 # Escape Plan
 
-Phase 2 implements the pure Classic Mode game engine. Networking and UI will be
-connected in later phases.
+Classic Mode includes the pure game engine, Socket.IO server, and a React client
+with original block-style pixel assets. The server owns movement, turn deadlines,
+scores, and rematches; the browser renders server state.
 
 ## Development
 
@@ -13,6 +14,24 @@ npm test
 npm run typecheck
 npm run build
 ```
+
+Start the built game with `npm start`, then open `http://localhost:3000` in two
+browsers. For a two-computer demo, open `http://<server-computer-LAN-IP>:3000`
+on both computers. Players enter nicknames, and the server pairs them
+automatically. The server operator can open `/admin.html` to view connected
+clients and reset scores; set `ADMIN_PASSWORD` before starting the server.
+
+For client hot reload, run `npm run dev` and `npm run dev:client` in separate
+terminals, then open `http://localhost:5173`. Vite proxies Socket.IO to port
+3000. The browser endpoint defaults to its own origin; `VITE_SERVER_URL` can
+override it at build time. In Vite development, `?fixture=warder` and the
+PREVIEW selector show mock lobby, role, timeout, result, waiting, and reset
+states without starting a match.
+
+Controls: Arrow keys or WASD, or the on-screen direction buttons. The yellow
+outline marks locally predictable legal destinations; the server validates
+every submitted move. The countdown uses the server's published time and
+deadline. At zero, the server makes a random legal move.
 
 The npm workspace `@escape-plan/game-core` exposes an ESM entry point and generated
 TypeScript declarations. Build before importing it from Node.js:

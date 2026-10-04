@@ -18,14 +18,16 @@
   },
   "main": "index.js",
   "workspaces": [
-    "packages/game-core"
+    "packages/game-core",
+    "client"
   ],
   "scripts": {
     "dev": "npm run build && tsx watch server/server.ts",
+    "dev:client": "npm run dev --workspace @escape-plan/client",
     "start": "npm run build && tsx server/server.ts",
     "test": "vitest run",
-    "typecheck": "tsc -p packages/game-core/tsconfig.json --noEmit && tsc -p tsconfig.test.json && tsc -p server/tsconfig.json",
-    "build": "tsc -p packages/game-core/tsconfig.json"
+    "typecheck": "tsc -p packages/game-core/tsconfig.json --noEmit && tsc -p tsconfig.test.json && tsc -p server/tsconfig.json && npm run typecheck --workspace @escape-plan/client",
+    "build": "tsc -p packages/game-core/tsconfig.json && npm run build --workspace @escape-plan/client"
   },
   "devDependencies": {
     "@types/express": "^5.0.6",

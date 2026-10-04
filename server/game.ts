@@ -220,7 +220,10 @@ export function registerGame(io: GameServer, socket: GameSocket): void {
     g.session = result.value;
 
     if (g.session.match?.status === 'active') beginMatch(io, g);
-    else io.to(channel(g)).emit('game:rematchStatus', toRematchVotes(g.session, g.names));
+    else {
+      broadcastState(io, g);
+      io.to(channel(g)).emit('game:rematchStatus', toRematchVotes(g.session, g.names));
+    }
   });
 
   socket.on('disconnect', () => {

@@ -22,13 +22,10 @@ const io: GameServer = new Server(httpServer, {
   cors: { origin: '*' },
 });
 
-// Serve files from the client/ folder
-app.use(express.static(path.join(__dirname, '..', 'client')));
-
-// Placeholder until client/index.html exists
-app.get('/', (req, res) => {
-  res.send('Hello world');
-});
+// Serve the built game client and retain the existing server dashboard.
+app.get('/admin.html', (_req, res) => res.sendFile(path.join(__dirname, '..', 'client', 'admin.html')));
+app.use(express.static(path.join(__dirname, '..', 'client', 'dist')));
+app.get('/', (_req, res) => res.sendFile(path.join(__dirname, '..', 'client', 'dist', 'index.html')));
 
 // Admin namespace: set up once, not per player
 registerAdmin(io);
