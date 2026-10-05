@@ -18,6 +18,20 @@ export interface GameState {
   rematchVotes: Record<string, boolean>;
 }
 
+// Ready check before a new match: who has pressed Ready (nicknames)
+export interface ReadyStatus {
+  waiting: boolean; // true until both players are ready; the turn timer is paused
+  ready: string[];
+}
+
+// Pause with consent: one player asks, the other must accept; both press Resume
+export interface PauseStatus {
+  requestedBy: string | null; // nickname of the player waiting for an answer, or null
+  paused: boolean; // true while the game is paused (timer stopped, moves blocked)
+  remainingMs: number | null; // time left for the current player, frozen while paused
+  resumeReady: string[]; // nicknames who pressed Resume
+}
+
 export interface MatchInfo {
   you: { nickname: string; role: Role };
   opponent: { nickname: string; role: Role };
@@ -45,6 +59,8 @@ export interface ServerToClientEvents {
   'admin:dashboard': (state: DashboardState) => void;
 
   // Gameplay
+  'game:readyStatus': (status: ReadyStatus) => void; // ready check: who is ready, still waiting?
+  'game:pauseStatus': (status: PauseStatus) => void; // pause request / paused / who pressed Resume
   'game:started': (info: MatchInfo) => void; // each match, per player: your role + opponent
   'game:state': (state: GameState) => void; // after every move / timeout, to both players
   'game:rejected': (reason: string) => void; // bad move or vote, only to the sender
@@ -59,6 +75,10 @@ export interface ClientToServerEvents {
   'player:join': (nickname: unknown) => void;
   'admin:reset': (done: (ok: boolean) => void) => void; // admin asking for reset
 
+  'game:ready': () => void; // player pressed the Ready button
+  'game:pauseRequest': () => void; // ask the rival to pause
+  'game:pauseAnswer': (accept: unknown) => void; // answer the rival's pause request
+  'game:resume': () => void; // ready to continue after a pause
   'game:move': (direction: unknown) => void;
   'game:rematchVote': (accept: unknown) => void;
 }
