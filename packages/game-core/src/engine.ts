@@ -73,6 +73,17 @@ export function resolveTimeout(session: Session, now: number, rng: Random): Resu
   const draw = randomIndex(rng, actions.length);
   return draw.ok ? transition(session, match, role, actions[draw.value]!.target, now) : draw;
 }
+// Restart the current player's turn clock at `now` (same player, same board).
+// Used after a ready check (full 10 s) and when resuming a pause (the time that was left).
+export function restartTurn(session: Session, now: number,
+  durationMs: number = TURN_DURATION_MS): Result<Session> {
+  const match = session.match;
+  if (match?.status !== 'active') return failure('NO_ACTIVE_MATCH');
+  if (!validTime(now) || now < match.turn.startedAt) return failure('INVALID_TIME');
+  if (!Number.isFinite(durationMs) || durationMs <= 0 || durationMs > TURN_DURATION_MS) return failure('INVALID_TIME');
+  return success({ ...session, match: { ...match,
+    turn: { playerId: match.turn.playerId, startedAt: now, deadline: now + durationMs } } });
+}
 export function voteRematch(session: Session, playerId: PlayerId, accept: boolean,
   now: number, rng: Random): Result<Session> {
   if (!session.players.includes(playerId)) return failure('UNKNOWN_PLAYER');

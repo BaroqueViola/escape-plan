@@ -26,3 +26,8 @@ export type Direction = z.infer<typeof Direction>;
 export const RematchVote = z.boolean({ error: 'Vote must be true or false' });
  
 export type RematchVote = z.infer<typeof RematchVote>;
+
+// Answer to a pause request: true = accept, false = decline
+export const PauseAnswer = z.boolean({ error: 'Answer must be true or false' });
+
+export type PauseAnswer = z.infer<typeof PauseAnswer>;
