@@ -9,13 +9,14 @@ import {
   move,
   resetSession,
   resolveTimeout,
+  restartTurn,
   startMatch,
   voteRematch,
   type ErrorCode,
   type PlayerId,
   type Session,
 } from '../packages/game-core/src/index.js';
-import { Direction, RematchVote } from './schema.js';
+import { Direction, PauseAnswer, RematchVote } from './schema.js';
 import { players } from './state.js';
 import { toGameState, toMatchInfo, toMatchResult, toRematchVotes, type Names } from './view.js';
 
@@ -25,7 +26,13 @@ interface Game {
   session: Session; // replaced after every successful core call
   names: Names; // socket id -> nickname, captured when the game starts
   timer: NodeJS.Timeout | null; // turn timer
+  ready: Set<PlayerId> | null; // during a ready check: who pressed Ready; null = no ready check
+  pauseRequest: PlayerId | null; // player waiting for the rival to accept a pause
+  paused: { remainingMs: number; resume: Set<PlayerId> } | null; // set while paused
 }
+
+// When resuming, the current player gets at least this much time
+const MIN_RESUME_MS = 1_000;
 
 const games = new Map<string, Game>(); // game id -> game
 const gameOf = new Map<PlayerId, Game>(); // socket id -> game
@@ -106,19 +113,52 @@ function afterTurn(io: GameServer, g: Game): void {
 
 function endMatch(io: GameServer, g: Game): void {
   cancelTimer(g);
+  if (g.pauseRequest !== null) {
+    g.pauseRequest = null; // the match is over, so the pause request no longer applies
+    sendPauseStatus(io, g);
+  }
   for (const id of g.session.players) {
     const result = toMatchResult(g.session, g.names, id);
     if (result) io.to(id).emit('game:ended', result);
   }
 }
 
-// g.session already holds a fresh active match
-function beginMatch(io: GameServer, g: Game): void {
+// Tell both players who has pressed Ready
+function sendReadyStatus(io: GameServer, g: Game): void {
+  io.to(channel(g)).emit('game:readyStatus', {
+    waiting: g.ready !== null,
+    ready: g.ready ? [...g.ready].map((id) => g.names[id] ?? id) : [],
+  });
+}
+
+// Tell both players about pause requests and the paused state
+function sendPauseStatus(io: GameServer, g: Game): void {
+  io.to(channel(g)).emit('game:pauseStatus', {
+    requestedBy: g.pauseRequest ? g.names[g.pauseRequest] ?? g.pauseRequest : null,
+    paused: g.paused !== null,
+    remainingMs: g.paused ? g.paused.remainingMs : null,
+    resumeReady: g.paused ? [...g.paused.resume].map((id) => g.names[id] ?? id) : [],
+  });
+}
+
+// g.session already holds a fresh active match.
+// needReady = true: show the board but keep the clock stopped until both press Ready.
+function beginMatch(io: GameServer, g: Game, needReady = false): void {
   for (const id of g.session.players) {
     const info = toMatchInfo(g.session, g.names, id);
     if (info) io.to(id).emit('game:started', info);
   }
+  g.pauseRequest = null; // a new match never starts paused
+  g.paused = null;
   broadcastState(io, g);
+
+  if (needReady) {
+    cancelTimer(g);
+    g.ready = new Set();
+    sendReadyStatus(io, g);
+    return; // the timer starts in the game:ready handler
+  }
+  g.ready = null;
   startTimer(io, g);
 }
 
@@ -150,13 +190,16 @@ export function matchmake(io: GameServer): void {
       session: started.value,
       names: { [a[0]]: a[1], [b[0]]: b[1] },
       timer: null,
+      ready: null,
+      pauseRequest: null,
+      paused: null,
     };
     games.set(g.id, g);
     for (const id of g.session.players) {
       gameOf.set(id, g);
       io.sockets.sockets.get(id)?.join(channel(g));
     }
-    beginMatch(io, g);
+    beginMatch(io, g, true); // new pair: wait for both to press Ready
   }
 }
 
@@ -173,11 +216,109 @@ export function resetGame(io: GameServer): void {
       continue;
     }
     g.session = restarted.value;
-    beginMatch(io, g);
+    beginMatch(io, g, true); // after a reset: wait for both to press Ready
   }
 }
 
 export function registerGame(io: GameServer, socket: GameSocket): void {
+  socket.on('game:ready', () => {
+    const g = gameOf.get(socket.id);
+    if (!g || g.ready === null) return; // not in a ready check: nothing to do
+
+    g.ready.add(socket.id);
+    if (g.ready.size < g.session.players.length) {
+      sendReadyStatus(io, g); // one player ready, still waiting for the other
+      return;
+    }
+
+    // Both ready: give the first player a full 10 seconds from now
+    const restarted = restartTurn(g.session, Date.now());
+    if (!restarted.ok) {
+      console.error(`Could not start the turn in game ${g.id}: ${restarted.error.code}`);
+      return;
+    }
+    g.session = restarted.value;
+    g.ready = null;
+    sendReadyStatus(io, g); // waiting: false -> clients hide the Ready screen
+    broadcastState(io, g); // new deadline
+    startTimer(io, g);
+  });
+
+  // ---- Pause (needs the rival's consent) ----
+  socket.on('game:pauseRequest', () => {
+    const g = gameOf.get(socket.id);
+    if (!g) return;
+    if (g.session.match?.status !== 'active' || g.ready !== null || g.paused !== null) {
+      socket.emit('game:rejected', 'You can only pause during a running match');
+      return;
+    }
+    if (g.pauseRequest !== null) {
+      socket.emit('game:rejected', 'A pause request is already waiting for an answer');
+      return;
+    }
+    g.pauseRequest = socket.id;
+    sendPauseStatus(io, g); // the rival sees Accept / Decline; the clock keeps running
+  });
+
+  socket.on('game:pauseAnswer', (raw) => {
+    const answer = PauseAnswer.safeParse(raw);
+    if (!answer.success) {
+      socket.emit('game:rejected', answer.error.issues[0]?.message ?? 'Invalid answer');
+      return;
+    }
+    const g = gameOf.get(socket.id);
+    if (!g || g.pauseRequest === null) return;
+    if (g.pauseRequest === socket.id) {
+      socket.emit('game:rejected', 'Your rival has to answer your pause request');
+      return;
+    }
+
+    const requester = g.pauseRequest;
+    g.pauseRequest = null;
+    const match = g.session.match;
+
+    if (!answer.data) {
+      io.to(requester).emit('game:rejected', `${g.names[socket.id] ?? 'Your rival'} declined to pause.`);
+      sendPauseStatus(io, g);
+      return;
+    }
+    if (match?.status !== 'active' || g.ready !== null || g.paused !== null) {
+      sendPauseStatus(io, g); // the match ended meanwhile: nothing to pause
+      return;
+    }
+
+    // Both agreed: stop the clock and remember how much time was left
+    cancelTimer(g);
+    g.paused = {
+      remainingMs: Math.min(match.turn.deadline - match.turn.startedAt, Math.max(MIN_RESUME_MS, match.turn.deadline - Date.now())),
+      resume: new Set(),
+    };
+    sendPauseStatus(io, g);
+  });
+
+  socket.on('game:resume', () => {
+    const g = gameOf.get(socket.id);
+    if (!g || g.paused === null) return;
+
+    g.paused.resume.add(socket.id);
+    if (g.paused.resume.size < g.session.players.length) {
+      sendPauseStatus(io, g); // still waiting for the other player
+      return;
+    }
+
+    // Both pressed Resume: continue with the time that was left
+    const restarted = restartTurn(g.session, Date.now(), g.paused.remainingMs);
+    if (!restarted.ok) {
+      console.error(`Could not resume game ${g.id}: ${restarted.error.code}`);
+      return;
+    }
+    g.session = restarted.value;
+    g.paused = null;
+    sendPauseStatus(io, g);
+    broadcastState(io, g); // new deadline
+    startTimer(io, g);
+  });
+
   socket.on('game:move', (raw) => {
     const direction = Direction.safeParse(raw);
     if (!direction.success) {
@@ -187,6 +328,14 @@ export function registerGame(io: GameServer, socket: GameSocket): void {
     const g = gameOf.get(socket.id);
     if (!g) {
       socket.emit('game:rejected', 'You are not in a match');
+      return;
+    }
+    if (g.ready !== null) {
+      socket.emit('game:rejected', 'Both players must press Ready first');
+      return;
+    }
+    if (g.paused !== null) {
+      socket.emit('game:rejected', 'The game is paused. Both players must press Resume');
       return;
     }
 

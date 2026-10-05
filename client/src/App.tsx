@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { io, type Socket } from 'socket.io-client';
-import type { ClientToServerEvents, GameState, MatchInfo, MatchResult, ServerToClientEvents } from '../../server/events';
+import type { ClientToServerEvents, GameState, MatchInfo, MatchResult, PauseStatus, ReadyStatus, ServerToClientEvents } from '../../server/events';
 import { fixture, fixtureNames, type FixtureName } from './fixtures';
 
 type GameSocket = Socket<ServerToClientEvents, ClientToServerEvents>;
@@ -50,6 +50,16 @@ function Board({ state, info, legal }: { state: GameState; info: MatchInfo; lega
   </div>;
 }
 
+// Two names with READY / WAITING, used on the Ready and Paused screens
+function StatusList({ names, ready, you }: { names: string[]; ready: string[]; you: string }) {
+  return <ul className="ready-list">
+    {names.map((name) => {
+      const isReady = ready.includes(name);
+      return <li key={name} className={isReady ? 'is-ready' : ''}><span>{name}{name === you ? ' (you)' : ''}</span><strong>{isReady ? '✓ READY' : 'WAITING'}</strong></li>;
+    })}
+  </ul>;
+}
+
 function PlayerCard({ name, role, score, active, self }: { name: string; role: string; score: number; active: boolean; self: boolean }) {
   return <div className={`player-card${active ? ' player-active' : ''}`}>
     <div className={`portrait portrait-${role}`}><img src={`/assets/${role}.svg`} alt="" /></div>
@@ -73,6 +83,8 @@ export default function App() {
   const [state, setState] = useState<GameState | null>(null);
   const [result, setResult] = useState<MatchResult | null>(null);
   const [votes, setVotes] = useState<Record<string, boolean>>({});
+  const [readyStatus, setReadyStatus] = useState<ReadyStatus | null>(null);
+  const [pauseStatus, setPauseStatus] = useState<PauseStatus | null>(null);
   const [notice, setNotice] = useState('');
   const [receivedAt, setReceivedAt] = useState(0);
   const [elapsed, setElapsed] = useState(0);
@@ -86,20 +98,22 @@ export default function App() {
       if (pendingName.current) client.emit('player:join', pendingName.current);
     });
     client.on('disconnect', () => {
-      setConnected(false); setJoined(false); setInfo(null); setState(null); setResult(null);
+      setConnected(false); setJoined(false); setInfo(null); setState(null); setResult(null); setReadyStatus(null); setPauseStatus(null);
       setNotice('Connection lost. Reconnecting to the server…');
     });
     client.on('connect_error', () => setNotice('Cannot reach the game server. Retrying…'));
     client.on('lobby:state', setPlayers);
     client.on('player:welcome', (message) => { setWelcome(message); setJoined(true); setNotice(''); });
     client.on('player:rejected', (message) => { pendingName.current = ''; setNotice(message); });
-    client.on('game:started', (value) => { setInfo(value); setState(null); setResult(null); setVotes({}); setNotice(''); });
+    client.on('game:started', (value) => { setInfo(value); setState(null); setResult(null); setVotes({}); setReadyStatus(null); setPauseStatus(null); setNotice(''); });
+    client.on('game:readyStatus', setReadyStatus);
+    client.on('game:pauseStatus', setPauseStatus);
     client.on('game:state', (value) => { setState(value); setReceivedAt(performance.now()); setElapsed(0); });
     client.on('game:ended', setResult);
     client.on('game:rematchStatus', setVotes);
     client.on('game:rejected', setNotice);
-    client.on('game:opponentLeft', (message) => { setInfo(null); setState(null); setResult(null); setVotes({}); setNotice(`${message} Waiting for a new rival.`); });
-    client.on('server:reset', (message) => { setInfo(null); setState(null); setResult(null); setVotes({}); setNotice(message); });
+    client.on('game:opponentLeft', (message) => { setInfo(null); setState(null); setResult(null); setVotes({}); setReadyStatus(null); setPauseStatus(null); setNotice(`${message} Waiting for a new rival.`); });
+    client.on('server:reset', (message) => { setInfo(null); setState(null); setResult(null); setVotes({}); setReadyStatus(null); setPauseStatus(null); setNotice(message); });
     return () => { client.removeAllListeners(); client.disconnect(); socket.current = null; };
   }, []);
 
@@ -119,9 +133,21 @@ export default function App() {
   } as MatchResult : null);
   const shownVotes = preview ? preview.votes : state?.rematchVotes ?? votes;
   const shownJoined = demo ? true : joined;
-  const legal = useMemo(() => legalDirections(shownState, shownInfo), [shownState, shownInfo]);
-  const myTurn = !!shownState && !!shownInfo && shownState.status === 'active' && shownState.turnNickname === shownInfo.you.nickname;
-  const remaining = shownState?.turnDeadline == null ? 0 : Math.max(0, shownState.turnDeadline - shownState.serverTime - (demo ? 0 : elapsed));
+  // Ready check: board is shown blurred, clock and moves are paused until both press Ready
+  const waitingReady = !demo && !!readyStatus?.waiting;
+  const iAmReady = !!info && !!readyStatus?.ready.includes(info.you.nickname);
+  // Pause: needs the rival's consent; while paused the clock is frozen and moves are blocked
+  const paused = !demo && !!pauseStatus?.paused;
+  const pauseRequestedBy = demo ? null : pauseStatus?.requestedBy ?? null;
+  const iRequestedPause = !!info && pauseRequestedBy === info.you.nickname;
+  const rivalRequestedPause = !!pauseRequestedBy && !iRequestedPause;
+  const iResumed = !!info && !!pauseStatus?.resumeReady.includes(info.you.nickname);
+  const blocked = waitingReady || paused;
+  const canPause = !demo && !blocked && !!info && state?.status === 'active';
+  const legal = useMemo(() => blocked ? [] : legalDirections(shownState, shownInfo), [shownState, shownInfo, blocked]);
+  const myTurn = !blocked && !!shownState && !!shownInfo && shownState.status === 'active' && shownState.turnNickname === shownInfo.you.nickname;
+  const remaining = paused ? pauseStatus?.remainingMs ?? 0
+    : shownState?.turnDeadline == null ? 0 : Math.max(0, shownState.turnDeadline - shownState.serverTime - (demo || waitingReady ? 0 : elapsed));
   const seconds = Math.ceil(remaining / 1000);
 
   function join(event: React.FormEvent) {
@@ -131,6 +157,9 @@ export default function App() {
     pendingName.current = value;
     setNotice('');
     socket.current.emit('player:join', value);
+  }
+  function answerPause(accept: boolean) {
+    socket.current?.emit('game:pauseAnswer', accept);
   }
   function move(direction: Direction) {
     if (!demo && myTurn && legal.includes(direction) && remaining > 0) {
@@ -151,9 +180,13 @@ export default function App() {
   return <div className="app-shell">
     <header className="topbar">
       <div className="brand"><span className="brand-mark">✦</span><div><strong>ESCAPE<span>PLAN</span></strong><small>CLASSIC</small></div></div>
-      <div className={`server-pill${connected || demo ? ' online' : ''}`}><span className="signal" />{connected || demo ? 'ONLINE' : 'CONNECTING'}</div>
+      <div className="topbar-actions">
+        {canPause && <button className="small-button pause-button" disabled={iRequestedPause} onClick={() => socket.current?.emit('game:pauseRequest')}>{iRequestedPause ? 'PAUSE REQUESTED…' : '❚❚ PAUSE'}</button>}
+        <div className={`server-pill${connected || demo ? ' online' : ''}`}><span className="signal" />{connected || demo ? 'ONLINE' : 'CONNECTING'}</div>
+      </div>
     </header>
     <main className="main-stage">
+      {canPause && rivalRequestedPause && <div className="pause-request" role="alert"><span><strong>{pauseRequestedBy}</strong> wants to pause the game.</span><div><button className="small-button" onClick={() => answerPause(true)}>ACCEPT</button><button className="small-button ghost" onClick={() => answerPause(false)}>DECLINE</button></div></div>}
       {notice && <div className="notice" role="alert"><span>!</span>{notice}<button aria-label="Dismiss message" onClick={() => setNotice('')}>×</button></div>}
       {!shownJoined ? <section className="entry-panel panel">
         <div className="entry-art"><img src="/assets/prisoner.svg" alt="Pixel art prisoner" /></div>
@@ -164,7 +197,7 @@ export default function App() {
         <div className="lobby-title"><h2>{demo ? 'Welcome, Alex.' : welcome || 'Welcome.'}</h2><p>Waiting for another player.</p></div>
         <div className="lobby-list"><div className="list-heading"><span>PLAYERS</span><strong>{demo ? 1 : players.length}/2</strong></div>{(demo ? ['Alex'] : players).map((player, index) => <div className="lobby-player" key={player}><span className="slot">0{index + 1}</span><img src="/assets/prisoner.svg" alt="" /><strong>{player}</strong></div>)}{(demo ? 1 : players.length) < 2 && <div className="empty-slot"><span className="slot">02</span><span className="loading-block" />Waiting...</div>}</div>
       </section> : <div className="game-layout">
-        <section className="game-panel panel"><div className="game-topline"><span className="eyebrow accent">CLASSIC · {shownState.board.width} × {shownState.board.height}</span><span className="match-badge">{shownState.status === 'finished' ? 'FINISHED' : myTurn ? 'YOUR TURN' : `${shownState.turnNickname}'S TURN`}</span></div><div className="board-area"><Board state={shownState} info={shownInfo} legal={legal} /></div><div className="board-footer"><span><i className="legend-dot wall" /> WALL</span><span><i className="legend-dot tunnel" /> TUNNEL</span><span><i className="legend-dot target" /> MOVE</span></div></section>
+        <section className="game-panel panel"><div className="game-topline"><span className="eyebrow accent">CLASSIC · {shownState.board.width} × {shownState.board.height}</span><span className="match-badge">{shownState.status === 'finished' ? 'FINISHED' : waitingReady ? 'GET READY' : paused ? 'PAUSED' : myTurn ? 'YOUR TURN' : `${shownState.turnNickname}'S TURN`}</span></div><div className="board-area"><Board state={shownState} info={shownInfo} legal={legal} /></div><div className="board-footer"><span><i className="legend-dot wall" /> WALL</span><span><i className="legend-dot tunnel" /> TUNNEL</span><span><i className="legend-dot target" /> MOVE</span></div></section>
         <aside className="sidebar"><div className="panel match-panel"><div className="panel-heading"><span className="eyebrow accent">PLAYERS</span></div><PlayerCard name={shownInfo.you.nickname} role={shownInfo.you.role} score={shownState.scores[shownInfo.you.nickname] ?? 0} active={myTurn} self /><div className="versus">VS</div><PlayerCard name={shownInfo.opponent.nickname} role={shownInfo.opponent.role} score={shownState.scores[shownInfo.opponent.nickname] ?? 0} active={!myTurn && shownState.status === 'active'} self={false} /></div>
           {shownState.status === 'active' ? <div className="panel turn-panel" title="At zero, the server makes a random legal move."><div className="turn-label"><span className="eyebrow accent">TIME LEFT</span></div><div className={`timer${seconds <= 3 ? ' timer-low' : ''}`}><strong>{String(seconds).padStart(2, '0')}</strong><span>SEC</span></div><div className="timer-track"><span style={{ width: `${Math.min(100, remaining / 100)}%` }} /></div></div>
             : <div className="panel result-panel"><h2>{shownResult?.result === 'Win' ? 'You win' : shownResult?.result === 'Lost' ? 'You lose' : 'Match over'}</h2><p>{shownResult ? shownResult.reason === 'escape' ? `${shownResult.winner} escaped.` : `${shownResult.winner} caught the prisoner.` : 'Loading result…'}</p><button className="primary-button" disabled={!shownResult || !!shownVotes[shownInfo.you.nickname] || !!demo} onClick={() => socket.current?.emit('game:rematchVote', true)}>{shownVotes[shownInfo.you.nickname] ? 'WAITING FOR PLAYER' : 'REMATCH'} <span>↗</span></button></div>}
@@ -172,6 +205,24 @@ export default function App() {
         </aside>
       </div>}
     </main>
+    {waitingReady && info && readyStatus && <div className="ready-overlay" role="dialog" aria-modal="true" aria-labelledby="ready-title">
+      <div className="ready-card panel">
+        <span className="eyebrow accent">MATCH FOUND</span>
+        <h2 id="ready-title">Get ready</h2>
+        <p>You are the <strong>{info.you.role.toUpperCase()}</strong> vs {info.opponent.nickname}. {info.you.role === 'warder' ? 'Catch the prisoner. You move first.' : 'Reach the tunnel before you are caught.'}</p>
+        <StatusList names={[info.you.nickname, info.opponent.nickname]} ready={readyStatus.ready} you={info.you.nickname} />
+        <button className="primary-button" autoFocus disabled={iAmReady} onClick={() => socket.current?.emit('game:ready')}>{iAmReady ? 'WAITING FOR RIVAL' : 'READY'} <span>↗</span></button>
+      </div>
+    </div>}
+    {paused && info && pauseStatus && <div className="ready-overlay" role="dialog" aria-modal="true" aria-labelledby="pause-title">
+      <div className="ready-card panel">
+        <span className="eyebrow accent">GAME PAUSED</span>
+        <h2 id="pause-title">Paused</h2>
+        <p>The clock is stopped with <strong>{Math.ceil((pauseStatus.remainingMs ?? 0) / 1000)}s</strong> left for {state?.turnNickname === info.you.nickname ? 'you' : state?.turnNickname ?? 'the current player'}. Both players press Resume to continue.</p>
+        <StatusList names={[info.you.nickname, info.opponent.nickname]} ready={pauseStatus.resumeReady} you={info.you.nickname} />
+        <button className="primary-button" autoFocus disabled={iResumed} onClick={() => socket.current?.emit('game:resume')}>{iResumed ? 'WAITING FOR RIVAL' : 'RESUME'} <span>↗</span></button>
+      </div>
+    </div>}
     {import.meta.env.DEV && <div className="fixture-switch"><label htmlFor="fixture">PREVIEW</label><select id="fixture" value={demo ?? ''} onChange={(event) => setDemo(event.target.value ? event.target.value as FixtureName : null)}><option value="">LIVE SERVER</option>{fixtureNames.map((name) => <option key={name} value={name}>{name.toUpperCase()}</option>)}</select></div>}
   </div>;
 }

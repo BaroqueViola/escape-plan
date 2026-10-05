@@ -1,6 +1,6 @@
 import { describe, expect, it, vi } from 'vitest';
 import { createSession, generateMap, legalMoves, MAX_GENERATION_ATTEMPTS, move,
-  resetSession, resolveTimeout, startMatch, tileAt, validateMap, voteRematch,
+  resetSession, resolveTimeout, restartTurn, startMatch, tileAt, validateMap, voteRematch,
   type ActiveMatch, type Board, type Coordinate, type GeneratedMap, type Random,
   type Result, type Session, type Tile } from '../src/index.js';
 
@@ -249,6 +249,37 @@ describe('timeout and outcomes', () => {
     const escape = unwrap(resolveTimeout(fixture({ x: 0, y: 0 }, { x: 3, y: 3 }, 'bob'), 10100, () => .99));
     expect(escape.match?.status === 'finished' && escape.match.outcome.reason).toBe('escape');
     expect(escape.scores.bob).toBe(1);
+  });
+});
+
+describe('restartTurn (ready check)', () => {
+  it('gives the same player a fresh deadline without changing the board', () => {
+    const input = freeze(fixture());
+    const next = unwrap(restartTurn(input, 50_000));
+    if (next.match?.status !== 'active') throw new Error('Expected active');
+    expect(next.match.turn).toEqual({ playerId: 'alice', startedAt: 50_000, deadline: 60_000 });
+    expect(next.match.board).toBe(input.match.board);
+    expect(next.match.positions).toEqual(input.match.positions);
+    expect(input.match.turn.deadline).toBe(10100);
+  });
+  it('lets a move succeed after the original deadline once restarted', () => {
+    const late = 30_000;
+    expectError(move(fixture(), 'alice', 'up', late), 'TURN_EXPIRED');
+    expect(move(unwrap(restartTurn(fixture(), late)), 'alice', 'up', late + 1).ok).toBe(true);
+  });
+  it('resumes a paused turn with only the time that was left', () => {
+    const next = unwrap(restartTurn(freeze(fixture()), 50_000, 4_000));
+    if (next.match?.status !== 'active') throw new Error('Expected active');
+    expect(next.match.turn).toEqual({ playerId: 'alice', startedAt: 50_000, deadline: 54_000 });
+    expectError(restartTurn(fixture(), 50_000, 0), 'INVALID_TIME');
+    expectError(restartTurn(fixture(), 50_000, 10_001), 'INVALID_TIME');
+    expectError(restartTurn(fixture(), 50_000, NaN), 'INVALID_TIME');
+  });
+  it('rejects missing or finished matches and invalid time', () => {
+    expectError(restartTurn(base(), 0), 'NO_ACTIVE_MATCH');
+    expectError(restartTurn(finished(), 300), 'NO_ACTIVE_MATCH');
+    expectError(restartTurn(fixture(), NaN), 'INVALID_TIME');
+    expectError(restartTurn(fixture(), 99), 'INVALID_TIME');
   });
 });
 
