@@ -27,6 +27,6 @@ export function printDashboard(io: GameServer, event: string): void {
     });
   }
 
-  // Also push the update live to every logged-in admin page
-  io.of('/admin').emit('admin:dashboard', state);
+  // Also push the update (and what happened) live to every logged-in admin page
+  io.of('/admin').emit('admin:dashboard', state, event);
 }

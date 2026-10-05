@@ -42,7 +42,7 @@ export interface ServerToClientEvents {
   'lobby:state': (players: string[]) => void;
   'player:welcome': (message: string) => void;
   'player:rejected': (reason: string) => void;
-  'admin:dashboard': (state: DashboardState) => void;
+  'admin:dashboard': (state: DashboardState, event?: string) => void; // event: what just happened, for the activity log
 
   // Gameplay
   'game:started': (info: MatchInfo) => void; // each match, per player: your role + opponent
