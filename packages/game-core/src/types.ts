@@ -1,5 +1,5 @@
 export type PlayerId = string;
-export type Role = 'warder' | 'prisoner';
+export type Role = 'warden' | 'prisoner';
 export type Tile = 'free' | 'obstacle' | 'tunnel';
 export type Direction = 'up' | 'down' | 'left' | 'right';
 export interface Coordinate { readonly x: number; readonly y: number }

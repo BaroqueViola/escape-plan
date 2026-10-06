@@ -8,17 +8,17 @@ const cells: GameState['board']['cells'] = [
   'free', 'free', 'free', 'obstacle', 'free',
 ];
 
-export const fixtureNames = ['lobby', 'warder', 'prisoner', 'timeout', 'capture', 'escape', 'waiting', 'reset'] as const;
+export const fixtureNames = ['lobby', 'warden', 'prisoner', 'timeout', 'capture', 'escape', 'waiting', 'reset'] as const;
 export type FixtureName = typeof fixtureNames[number];
 
 export function fixture(name: FixtureName): { info: MatchInfo | null; state: GameState | null; result: MatchResult | null; votes: Record<string, boolean> } {
   if (name === 'lobby' || name === 'reset') return { info: null, state: null, result: null, votes: {} };
-  const me = name === 'prisoner' || name === 'escape' ? 'prisoner' : 'warder';
-  const opponent = me === 'warder' ? 'prisoner' : 'warder';
+  const me = name === 'prisoner' || name === 'escape' ? 'prisoner' : 'warden';
+  const opponent = me === 'warden' ? 'prisoner' : 'warden';
   const finished = name === 'capture' || name === 'escape' || name === 'waiting';
   const state: GameState = {
     board: { width: 5, height: 5, cells },
-    positions: { warder: { x: 1, y: 1 }, prisoner: { x: name === 'escape' ? 2 : 3, y: 2 } },
+    positions: { warden: { x: 1, y: 1 }, prisoner: { x: name === 'escape' ? 2 : 3, y: 2 } },
     roles: { Alex: me, Morgan: opponent },
     scores: { Alex: name === 'capture' ? 2 : 1, Morgan: name === 'escape' ? 2 : 0 },
     status: finished ? 'finished' : 'active',

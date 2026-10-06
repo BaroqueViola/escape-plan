@@ -20,7 +20,7 @@ export function toGameState(session: Session, names: Names, now: number): GameSt
   return {
     board: { width: m.board.width, height: m.board.height, cells: m.board.cells },
     positions: m.positions,
-    roles: { [nameOf(names, m.roles.warder)]: 'warder', [nameOf(names, m.roles.prisoner)]: 'prisoner' },
+    roles: { [nameOf(names, m.roles.warden)]: 'warden', [nameOf(names, m.roles.prisoner)]: 'prisoner' },
     scores: scoresByName(session, names),
     status: m.status,
     turnNickname: m.status === 'active' ? nameOf(names, m.turn.playerId) : null,
@@ -36,7 +36,7 @@ export function toMatchInfo(session: Session, names: Names, playerId: PlayerId):
   if (!m) return null;
   const opponentId = session.players.find((id) => id !== playerId);
   if (opponentId === undefined) return null;
-  const roleOf = (id: PlayerId) => (m.roles.warder === id ? 'warder' : 'prisoner');
+  const roleOf = (id: PlayerId) => (m.roles.warden === id ? 'warden' : 'prisoner');
   return {
     you: { nickname: nameOf(names, playerId), role: roleOf(playerId) },
     opponent: { nickname: nameOf(names, opponentId), role: roleOf(opponentId) },

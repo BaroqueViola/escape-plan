@@ -24,7 +24,7 @@ clients and reset scores; set `ADMIN_PASSWORD` before starting the server.
 For client hot reload, run `npm run dev` and `npm run dev:client` in separate
 terminals, then open `http://localhost:5173`. Vite proxies Socket.IO to port
 3000. The browser endpoint defaults to its own origin; `VITE_SERVER_URL` can
-override it at build time. In Vite development, `?fixture=warder` and the
+override it at build time. In Vite development, `?fixture=warden` and the
 PREVIEW selector show mock lobby, role, timeout, result, waiting, and reset
 states without starting a match.
 
@@ -67,10 +67,10 @@ the later networking layer.
 | `validateMap(map)` | Checks dimensions, composition, connected free cells, tunnel reachability, and distinct playable starts. |
 | `tileAt(board, coordinate)` | Returns a tile, or `undefined` outside the board. |
 | `legalMoves(board, position, role)` | Returns legal directions and target coordinates without considering turn ownership. |
-| `startMatch(session, now, rng, options?)` | Requires an empty session; generates the board, randomises roles, and starts the warder's turn. |
+| `startMatch(session, now, rng, options?)` | Requires an empty session; generates the board, randomises roles, and starts the warden's turn. |
 | `move(session, playerId, direction, now)` | Validates and applies an active player's move before the deadline. |
 | `resolveTimeout(session, now, rng)` | At or after expiry, applies a random legal move through the same scoring and turn rules. |
-| `voteRematch(session, playerId, accept, now, rng)` | Replaces a finished-match vote; two yes votes create a new match with the winner as warder. |
+| `voteRematch(session, playerId, accept, now, rng)` | Replaces a finished-match vote; two yes votes create a new match with the winner as warden. |
 | `resetSession(session)` | Returns an empty session, preserving identities and clearing scores. |
 
 Dimensions must be integers of at least five in each direction. Obstacles occupy
@@ -86,7 +86,7 @@ An early timeout returns `TIMEOUT_NOT_DUE` without drawing randomness or changin
 state. Random generators must return finite values in `[0, 1)`.
 
 Capture occurs when either character moves onto the other's cell, awarding the
-warder one point. Tunnel entry awards the prisoner one point. Finished matches
+warden one point. Tunnel entry awards the prisoner one point. Finished matches
 have an outcome and rematch votes, but no active turn. Additional actions cannot
 increment scores again. Rematches retain scores and board dimensions. If map
 generation fails when the second vote is submitted, retain the previous session

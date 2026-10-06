@@ -32,16 +32,16 @@ function Board({ state, info, legal }: { state: GameState; info: MatchInfo; lega
     return `${from.x + delta.x},${from.y + delta.y}`;
   }));
   return <div className="board-frame">
-    <div className="board" role="img" aria-label={`${state.board.width} by ${state.board.height} map. Warder at column ${state.positions.warder.x + 1}, row ${state.positions.warder.y + 1}. Prisoner at column ${state.positions.prisoner.x + 1}, row ${state.positions.prisoner.y + 1}. Tunnel marked by a glowing portal.`} style={{ gridTemplateColumns: `repeat(${state.board.width}, 1fr)` }}>
+    <div className="board" role="img" aria-label={`${state.board.width} by ${state.board.height} map. Warden at column ${state.positions.warden.x + 1}, row ${state.positions.warden.y + 1}. Prisoner at column ${state.positions.prisoner.x + 1}, row ${state.positions.prisoner.y + 1}. Tunnel marked by a glowing portal.`} style={{ gridTemplateColumns: `repeat(${state.board.width}, 1fr)` }}>
       {state.board.cells.map((tile, index) => {
         const x = index % state.board.width;
         const y = Math.floor(index / state.board.width);
-        const warder = state.positions.warder.x === x && state.positions.warder.y === y;
+        const warden = state.positions.warden.x === x && state.positions.warden.y === y;
         const prisoner = state.positions.prisoner.x === x && state.positions.prisoner.y === y;
-        const label = `${tile === 'free' ? 'Floor' : tile === 'obstacle' ? 'Wall' : 'Tunnel'}, column ${x + 1}, row ${y + 1}${warder ? ', warder' : ''}${prisoner ? ', prisoner' : ''}${targets.has(`${x},${y}`) ? ', legal destination' : ''}`;
+        const label = `${tile === 'free' ? 'Floor' : tile === 'obstacle' ? 'Wall' : 'Tunnel'}, column ${x + 1}, row ${y + 1}${warden ? ', warden' : ''}${prisoner ? ', prisoner' : ''}${targets.has(`${x},${y}`) ? ', legal destination' : ''}`;
         return <div key={index} className={`tile tile-${tile}${targets.has(`${x},${y}`) ? ' tile-legal' : ''}`} title={label}>
           <img className="terrain" src={`/assets/${tile}.svg`} alt="" />
-          {warder && <img className="character warder" src="/assets/warder.svg" alt="" />}
+          {warden && <img className="character warden" src="/assets/warden.svg" alt="" />}
           {prisoner && <img className="character prisoner" src="/assets/prisoner.svg" alt="" />}
           {targets.has(`${x},${y}`) && <span className="move-dot" />}
         </div>;
@@ -209,7 +209,7 @@ export default function App() {
       <div className="ready-card panel">
         <span className="eyebrow accent">MATCH FOUND</span>
         <h2 id="ready-title">Get ready</h2>
-        <p>You are the <strong>{info.you.role.toUpperCase()}</strong> vs {info.opponent.nickname}. {info.you.role === 'warder' ? 'Catch the prisoner. You move first.' : 'Reach the tunnel before you are caught.'}</p>
+        <p>You are the <strong>{info.you.role.toUpperCase()}</strong> vs {info.opponent.nickname}. {info.you.role === 'warden' ? 'Catch the prisoner. You move first.' : 'Reach the tunnel before you are caught.'}</p>
         <StatusList names={[info.you.nickname, info.opponent.nickname]} ready={readyStatus.ready} you={info.you.nickname} />
         <button className="primary-button" autoFocus disabled={iAmReady} onClick={() => socket.current?.emit('game:ready')}>{iAmReady ? 'WAITING FOR RIVAL' : 'READY'} <span>↗</span></button>
       </div>
