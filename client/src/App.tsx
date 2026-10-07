@@ -2,6 +2,7 @@ import { useEffect, useMemo, useRef, useState } from 'react';
 import { io, type Socket } from 'socket.io-client';
 import type { ClientToServerEvents, GameState, MatchInfo, MatchResult, PauseStatus, ReadyStatus, ServerToClientEvents } from '../../server/events';
 import { fixture, fixtureNames, type FixtureName } from './fixtures';
+import { SERVER_URL } from './config';
 
 type GameSocket = Socket<ServerToClientEvents, ClientToServerEvents>;
 type Direction = 'up' | 'down' | 'left' | 'right';
@@ -90,7 +91,7 @@ export default function App() {
   const [elapsed, setElapsed] = useState(0);
 
   useEffect(() => {
-    const client: GameSocket = io(import.meta.env.VITE_SERVER_URL || undefined, { autoConnect: true });
+    const client: GameSocket = io(SERVER_URL || undefined, { autoConnect: true });
     socket.current = client;
     client.on('connect', () => {
       setConnected(true);
