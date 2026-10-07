@@ -33,9 +33,6 @@ For client hot reload, run `npm run dev` and `npm run dev:client` in separate
 terminals, then open `http://localhost:5173`. Vite proxies Socket.IO to port
 3000. The server address is hard-coded in `client/src/config.ts`
 (`SERVER_URL`); when it is empty, the browser connects to its own origin.
-In Vite development, `?fixture=warden` and the PREVIEW selector show mock
-lobby, role, timeout, result, waiting, and reset states without starting a
-match.
 
 Controls: Arrow keys or WASD, or the on-screen direction buttons. The yellow
 outline marks locally predictable legal destinations; the server validates
