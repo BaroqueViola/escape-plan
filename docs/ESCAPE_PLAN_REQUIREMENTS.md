@@ -20,20 +20,20 @@ This brief separates the assignment baseline in the PDF from the proposed Node.j
 ### Map and roles
 
 - Use a board of at least 5 x 5 blocks. The required 5 x 5 baseline composition is 19 free blocks, 5 obstacle blocks (20%), and 1 tunnel block.
-- Include a warder and a prisoner.
+- Include a warden and a prisoner.
 - Both characters may enter free blocks and may not enter obstacle blocks.
 - Only the prisoner may enter the tunnel block.
 - At the beginning of every match, the server randomly places the blocks without creating a deadlock and randomly assigns roles.
-- The server randomly places both characters on free blocks. The warder always moves first.
+- The server randomly places both characters on free blocks. The warden always moves first.
 
 ### Turns, outcomes, and replay
 
 - A player has 10 seconds per turn to move one block up, down, left, or right.
 - Players alternate turns.
-- The prisoner wins by reaching the tunnel; the warder wins by catching the prisoner.
+- The prisoner wins by reaching the tunnel; the warden wins by catching the prisoner.
 - Increase the winner's score by one.
 - At match end, show each client `Win` or `Lost`, both current scores, and a Rematch button.
-- Start a rematch only when both players agree. The previous winner becomes the warder.
+- Start a rematch only when both players agree. The previous winner becomes the warden.
 - Provide a server reset button that resets the game and both players' scores.
 
 ## 2. DOCX implementation: Classic Mode MVP
@@ -55,16 +55,16 @@ The server is authoritative: clients submit intended actions, while the server v
 ### Classic Mode flow
 
 1. A client connects to the server URL configured in source, supplies a nickname, receives the connected-player list, and sees the welcome message.
-2. Once two players are ready, the server generates a valid random map, assigns first-match roles, chooses legal free starting cells, and starts with the warder.
+2. Once two players are ready, the server generates a valid random map, assigns first-match roles, chooses legal free starting cells, and starts with the warden.
 3. Only the active player may request one legal orthogonal move. The server controls and publishes the 10-second deadline.
 4. If a turn expires, the proposed MVP behaviour is that the server selects a random legal move, then continues the match.
 5. The server detects tunnel escape or capture, increments the winner's score, and sends the end result and rematch eligibility to both clients.
-6. A rematch requires both votes; the previous winner is warder. An admin reset clears the current match and all scores.
+6. A rematch requires both votes; the previous winner is warden. An admin reset clears the current match and all scores.
 
 ### Map generation and validation
 
 - Generate all board tiles on the server. For the 5 x 5 baseline, allocate 5 obstacles, 1 non-obstacle tunnel, and 19 free cells. For a larger board, preserve the assignment constraints while defining the extra-cell composition explicitly.
-- Select distinct free starting positions for warder and prisoner.
+- Select distinct free starting positions for warden and prisoner.
 - Model traversable cells as an orthogonal graph and use breadth-first search to confirm the prisoner can reach the tunnel and both players have a legal move.
 - Regenerate maps that fail validation. This is how the implementation guarantees no deadlock.
 
@@ -103,11 +103,11 @@ Enhanced Mode is a separate ruleset on the same authoritative engine and network
 
 | Priority | Feature | Intended behaviour |
 | --- | --- | --- |
-| P1 | Role abilities | Prisoner cloak hides the prisoner for one turn. Warder barrier adds a temporary obstacle only when map connectivity remains valid. |
+| P1 | Role abilities | Prisoner cloak hides the prisoner for one turn. Warden barrier adds a temporary obstacle only when map connectivity remains valid. |
 | P1 | AI shadow clone | A decoy prisoner uses a simple legal-move/pathfinding policy; this is the preferred small, explainable AI feature. |
 | P1 | Fog of war | Send each client a filtered view within a limited radius; optionally have obstacles block line of sight. |
-| P2 | Character classes | Balanced, explicitly specified abilities for selected prisoner candidates (Rogue, Sukuna, Naruto) and warder candidates (Gojo, Eraser Head, Darth Vader). |
-| P2 | Power-ups | Server-placed, limited-duration items such as a vision jammer or a two-tile warder tool; the server validates every effect. |
+| P2 | Character classes | Balanced, explicitly specified abilities for selected prisoner candidates (Rogue, Sukuna, Naruto) and warden candidates (Gojo, Eraser Head, Darth Vader). |
+| P2 | Power-ups | Server-placed, limited-duration items such as a vision jammer or a two-tile warden tool; the server validates every effect. |
 | P3 | AI opponent | Optional single-player mode using shortest-path evaluation and alpha-beta search, only after multiplayer is stable. |
 
 ### Backlog only

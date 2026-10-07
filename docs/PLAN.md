@@ -24,7 +24,7 @@ The exit criterion is that all game-rule unit tests pass without a UI or running
 - Shuffle coordinates using injected randomness, place tiles, and select distinct free starting cells.
 - Use breadth-first search to require all free cells to form one connected region, with the tunnel reachable from the prisoner’s start and both characters having a legal opening move.
 - Retry invalid candidates up to 1,000 times, then return a generation error without changing session state.
-- Randomly assign first-match roles. On every match, generate a fresh board and starting positions and give the warder the first turn.
+- Randomly assign first-match roles. On every match, generate a fresh board and starting positions and give the warden the first turn.
 
 ### Moves, turns, and outcomes
 
@@ -32,13 +32,13 @@ The exit criterion is that all game-rule unit tests pass without a UI or running
 - Reject unknown players, moves outside an active match, out-of-turn requests, invalid directions, blocked targets, and moves submitted at or after the deadline.
 - Start each turn with a deadline of supplied time plus 10,000 milliseconds. After a successful nonterminal move, switch players and set a new deadline.
 - Resolve expiry through an explicit function. At or after the deadline, choose a random legal move for the active player and process it through the same transition logic. An early expiry request changes nothing.
-- Treat either character moving onto the other’s cell as capture and a warder victory. Entering the tunnel produces a prisoner victory.
+- Treat either character moving onto the other’s cell as capture and a warden victory. Entering the tunnel produces a prisoner victory.
 - Award the winner exactly one point, record the winner and reason, and stop turn advancement. Further moves or expiry calls cannot award additional points.
 
 ### Rematch and reset
 
 - Accept rematch votes only for a finished match. Each player’s latest vote replaces their previous vote.
-- Start a new match only when both players accept. Preserve scores, assign the previous winner as warder, regenerate the map and positions, and clear votes.
+- Start a new match only when both players accept. Preserve scores, assign the previous winner as warden, regenerate the map and positions, and clear votes.
 - Reset clears the match and votes and sets both scores to zero while preserving player identities. The next ordinary match randomises roles again.
 - Keep server controls, socket events, nickname validation, reconnection handling, UI, and Enhanced Mode outside this phase.
 
@@ -47,9 +47,9 @@ The exit criterion is that all game-rule unit tests pass without a UI or running
 - Verify tile counts on 5×5, 6×6, and rectangular boards; reject invalid dimensions.
 - Check connectivity, tunnel reachability, distinct free starts, bounded generation failure, and reproducibility with seeded randomness.
 - Test all four directions, boundaries, obstacles, role-specific tunnel access, player identity, turn ownership, and immutability after rejection.
-- Verify warder-first ordering, alternating turns, exact deadline boundaries, random legal timeout moves, and timeout-triggered victories.
+- Verify warden-first ordering, alternating turns, exact deadline boundaries, random legal timeout moves, and timeout-triggered victories.
 - Test both capture directions, tunnel escape, score increments, and rejection of actions after a match ends.
-- Test one-sided consent, declined/replaced votes, mutual rematch, winner-as-warder assignment, retained scores, and reset from active and finished matches.
+- Test one-sided consent, declined/replaced votes, mutual rematch, winner-as-warden assignment, retained scores, and reset from active and finished matches.
 - Run repeated seeded generations to check map invariants and scripted complete matches to verify lifecycle transitions.
 - Acceptance: unit tests, strict type checking, and package build pass; the package imports without starting any server or timer.
 

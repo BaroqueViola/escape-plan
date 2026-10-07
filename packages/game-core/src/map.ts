@@ -44,11 +44,11 @@ export function validateMap({ board, starts }: GeneratedMap): boolean {
   const free = board.cells.filter(t => t === 'free').length;
   if (obstacles !== Math.floor(board.cells.length * 0.20) || tunnels !== 1
     || free + obstacles + tunnels !== board.cells.length) return false;
-  if (sameCell(starts.warder, starts.prisoner)
-    || tileAt(board, starts.warder) !== 'free' || tileAt(board, starts.prisoner) !== 'free') return false;
-  return reachable(board, starts.warder, 'warder').size === free
+  if (sameCell(starts.warden, starts.prisoner)
+    || tileAt(board, starts.warden) !== 'free' || tileAt(board, starts.prisoner) !== 'free') return false;
+  return reachable(board, starts.warden, 'warden').size === free
     && reachable(board, starts.prisoner, 'prisoner').has(board.cells.indexOf('tunnel'))
-    && legalMoves(board, starts.warder, 'warder').length > 0
+    && legalMoves(board, starts.warden, 'warden').length > 0
     && legalMoves(board, starts.prisoner, 'prisoner').length > 0;
 }
 export function randomIndex(rng: Random, length: number): Result<number> {
@@ -76,7 +76,7 @@ export function generateMap(rng: Random, options: BoardOptions = DEFAULT_BOARD):
     cells[tunnel.y * width + tunnel.x] = 'tunnel';
     const map: GeneratedMap = {
       board: { width, height, cells },
-      starts: { warder: coordinates[obstacleCount + 1]!, prisoner: coordinates[obstacleCount + 2]! },
+      starts: { warden: coordinates[obstacleCount + 1]!, prisoner: coordinates[obstacleCount + 2]! },
     };
     if (validateMap(map)) return success(map);
   }

@@ -360,7 +360,7 @@ export function registerGame(io: GameServer, socket: GameSocket): void {
       return;
     }
 
-    // Core starts a new match (previous winner = warder) once both accept
+    // Core starts a new match (previous winner = warden) once both accept
     const result = voteRematch(g.session, socket.id, vote.data, Date.now(), rng);
     if (!result.ok) {
       socket.emit('game:rejected', REASONS[result.error.code]);

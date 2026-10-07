@@ -22,14 +22,14 @@ function freeze<T>(value: T): T {
   return value;
 }
 const base = (): Session => unwrap(createSession(['alice', 'bob']));
-function fixture(warder: Coordinate = { x: 2, y: 2 }, prisoner: Coordinate = { x: 0, y: 1 },
+function fixture(warden: Coordinate = { x: 2, y: 2 }, prisoner: Coordinate = { x: 0, y: 1 },
   active: 'alice' | 'bob' = 'alice'): Session & { match: ActiveMatch } {
   const cells: Tile[] = Array<Tile>(25).fill('free');
   for (let i = 20; i < 25; i++) cells[i] = 'obstacle';
   cells[19] = 'tunnel';
   return { ...base(), match: {
     status: 'active', board: { width: 5, height: 5, cells },
-    roles: { warder: 'alice', prisoner: 'bob' }, positions: { warder, prisoner },
+    roles: { warden: 'alice', prisoner: 'bob' }, positions: { warden, prisoner },
     turn: { playerId: active, startedAt: 100, deadline: 10100 },
   } };
 }
@@ -46,8 +46,8 @@ describe('map generation and validation', () => {
     expect(map.board.cells.filter(t => t === 'tunnel')).toHaveLength(1);
     expect(map.board.cells.filter(t => t === 'free')).toHaveLength(width * height - Math.floor(width * height * .2) - 1);
     expect(validateMap(map)).toBe(true);
-    expect(map.starts.warder).not.toEqual(map.starts.prisoner);
-    for (const role of ['warder', 'prisoner'] as const) {
+    expect(map.starts.warden).not.toEqual(map.starts.prisoner);
+    for (const role of ['warden', 'prisoner'] as const) {
       expect(tileAt(map.board, map.starts[role])).toBe('free');
       expect(legalMoves(map.board, map.starts[role], role).length).toBeGreaterThan(0);
     }
@@ -69,7 +69,7 @@ describe('map generation and validation', () => {
       }
       return seen;
     };
-    expect(flood(map.starts.warder, false).size).toBe(map.board.cells.filter(t => t === 'free').length);
+    expect(flood(map.starts.warden, false).size).toBe(map.board.cells.filter(t => t === 'free').length);
     expect(flood(map.starts.prisoner, true).has(map.board.cells.indexOf('tunnel'))).toBe(true);
   });
   it.each([0, 4, -5, 5.5, Infinity, NaN])('rejects dimension %s', size => {
@@ -96,7 +96,7 @@ describe('map generation and validation', () => {
     for (let i = 1; i <= 5; i++) cells[i] = 'obstacle';
     cells[6] = 'tunnel';
     const map: GeneratedMap = { board: { width: 5, height: 5, cells },
-      starts: { warder: { x: 2, y: 2 }, prisoner: { x: 3, y: 2 } } };
+      starts: { warden: { x: 2, y: 2 }, prisoner: { x: 3, y: 2 } } };
     expect(validateMap(map)).toBe(false);
     const trapped: Tile[] = Array<Tile>(25).fill('free');
     trapped[0] = 'tunnel';
@@ -107,8 +107,8 @@ describe('map generation and validation', () => {
     const s = fixture();
     const map = { board: s.match.board, starts: s.match.positions };
     expect(validateMap(map)).toBe(true);
-    expect(validateMap({ ...map, starts: { ...map.starts, prisoner: map.starts.warder } })).toBe(false);
-    expect(validateMap({ ...map, starts: { ...map.starts, warder: { x: 0, y: 4 } } })).toBe(false);
+    expect(validateMap({ ...map, starts: { ...map.starts, prisoner: map.starts.warden } })).toBe(false);
+    expect(validateMap({ ...map, starts: { ...map.starts, warden: { x: 0, y: 4 } } })).toBe(false);
     expect(validateMap({ ...map, starts: { ...map.starts, prisoner: { x: 9, y: 9 } } })).toBe(false);
     expect(validateMap({ ...map, board: { ...map.board, cells: [] } })).toBe(false);
     expect(validateMap({ ...map, board: { ...map.board, cells: Array<Tile>(25).fill('free') } })).toBe(false);
@@ -127,15 +127,15 @@ describe('sessions and match setup', () => {
   it('supports arbitrary player IDs, including object-property names', () => {
     expect(unwrap(createSession(['__proto__', 'constructor'])).scores.__proto__).toBe(0);
   });
-  it('starts with the randomly selected warder and an injected deadline', () => {
+  it('starts with the randomly selected warden and an injected deadline', () => {
     const input = freeze(base());
     const seen = new Set<string>();
     for (let seed = 1; seed <= 20; seed++) {
       const session = unwrap(startMatch(input, 500, seeded(seed), { width: 6, height: 5 }));
       expect(session.match?.status).toBe('active');
       if (session.match?.status !== 'active') throw new Error('Expected active');
-      seen.add(session.match.roles.warder);
-      expect(session.match.turn).toEqual({ playerId: session.match.roles.warder, startedAt: 500, deadline: 10500 });
+      seen.add(session.match.roles.warden);
+      expect(session.match.turn).toEqual({ playerId: session.match.roles.warden, startedAt: 500, deadline: 10500 });
       expect(validateMap({ board: session.match.board, starts: session.match.positions })).toBe(true);
     }
     expect(seen.size).toBe(2);
@@ -160,10 +160,10 @@ describe('movement and turns', () => {
   ] as const)('moves %s and changes turn without mutating input', (direction, target) => {
     const input = freeze(fixture());
     const next = unwrap(move(input, 'alice', direction, 250));
-    expect(next.match?.positions.warder).toEqual(target);
+    expect(next.match?.positions.warden).toEqual(target);
     if (next.match?.status !== 'active') throw new Error('Expected active');
     expect(next.match.turn).toEqual({ playerId: 'bob', startedAt: 250, deadline: 10250 });
-    expect(input.match.positions.warder).toEqual({ x: 2, y: 2 });
+    expect(input.match.positions.warden).toEqual({ x: 2, y: 2 });
     const after = unwrap(move(next, 'bob', 'right', 300));
     expect(after.match?.status === 'active' && after.match.turn.playerId).toBe('alice');
   });
@@ -177,7 +177,7 @@ describe('movement and turns', () => {
   it('allows only prisoners into the tunnel', () => {
     expectError(move(fixture({ x: 3, y: 3 }), 'alice', 'right', 200), 'ILLEGAL_MOVE');
     expect(legalMoves(fixture().match.board, { x: 3, y: 3 }, 'prisoner').map(m => m.direction)).toContain('right');
-    expect(legalMoves(fixture().match.board, { x: 3, y: 3 }, 'warder').map(m => m.direction)).not.toContain('right');
+    expect(legalMoves(fixture().match.board, { x: 3, y: 3 }, 'warden').map(m => m.direction)).not.toContain('right');
     expect(legalMoves(fixture().match.board, { x: 3, y: 3 }, 'prisoner').map(m => m.direction)).not.toContain('down');
   });
   it('rejects identities, invalid directions, inactive matches, and invalid time', () => {
@@ -197,7 +197,7 @@ describe('movement and turns', () => {
   });
   it('enumerates boundary moves and rejects noninteger coordinates', () => {
     const board = fixture().match.board;
-    expect(legalMoves(board, { x: 0, y: 0 }, 'warder').map(m => m.direction)).toEqual(['down', 'right']);
+    expect(legalMoves(board, { x: 0, y: 0 }, 'warden').map(m => m.direction)).toEqual(['down', 'right']);
     expect(tileAt(board, { x: .5, y: 0 })).toBeUndefined();
     expect(tileAt(board, { x: 0, y: 5 })).toBeUndefined();
   });
@@ -214,10 +214,10 @@ describe('timeout and outcomes', () => {
   });
   it.each([10100, 15000])('resolves at/after expiry %i using a random legal move', now => {
     const input = freeze(fixture());
-    const actions = legalMoves(input.match.board, input.match.positions.warder, 'warder');
+    const actions = legalMoves(input.match.board, input.match.positions.warden, 'warden');
     for (let i = 0; i < actions.length; i++) {
       const next = unwrap(resolveTimeout(input, now, () => (i + .1) / actions.length));
-      expect(next.match?.positions.warder).toEqual(actions[i]!.target);
+      expect(next.match?.positions.warden).toEqual(actions[i]!.target);
       expect(next.match?.status === 'active' && next.match.turn.deadline).toBe(now + 10000);
     }
     expectError(resolveTimeout(input, now, () => 1), 'INVALID_RANDOM');
@@ -228,9 +228,9 @@ describe('timeout and outcomes', () => {
     const invalid = { ...input, match: { ...input.match, board: { ...input.match.board, cells } } };
     expectError(resolveTimeout(freeze(invalid), 10100, () => 0), 'NO_LEGAL_MOVE');
   });
-  it.each(['warder', 'prisoner'] as const)('awards capture when %s moves onto the opponent', role => {
-    const input = freeze(fixture({ x: 1, y: 1 }, { x: 2, y: 1 }, role === 'warder' ? 'alice' : 'bob'));
-    const next = unwrap(move(input, role === 'warder' ? 'alice' : 'bob', role === 'warder' ? 'right' : 'left', 200));
+  it.each(['warden', 'prisoner'] as const)('awards capture when %s moves onto the opponent', role => {
+    const input = freeze(fixture({ x: 1, y: 1 }, { x: 2, y: 1 }, role === 'warden' ? 'alice' : 'bob'));
+    const next = unwrap(move(input, role === 'warden' ? 'alice' : 'bob', role === 'warden' ? 'right' : 'left', 200));
     expect(next.scores).toEqual({ alice: 1, bob: 0 });
     expect(next.match?.status === 'finished' && next.match.outcome).toEqual({ winner: 'alice', reason: 'capture' });
     expect(next.match).not.toHaveProperty('turn');
@@ -295,21 +295,21 @@ describe('rematch and reset', () => {
     expect(session.match.rematchVotes).toEqual({ alice: false, bob: true });
     session = unwrap(voteRematch(freeze(session), 'alice', true, 500, seeded(3)));
     expect(session.scores).toEqual({ alice: 1, bob: 0 });
-    expect(session.match?.roles).toEqual({ warder: 'alice', prisoner: 'bob' });
+    expect(session.match?.roles).toEqual({ warden: 'alice', prisoner: 'bob' });
     expect(session.match?.board).not.toBe(input.match?.board);
     expect(session.match).not.toHaveProperty('rematchVotes');
     expect(session.match?.status === 'active' && session.match.turn.deadline).toBe(10500);
     expect(input.match?.status === 'finished' && input.match.rematchVotes).toEqual({});
   });
-  it('assigns a winning prisoner as warder and retains larger board dimensions', () => {
+  it('assigns a winning prisoner as warden and retains larger board dimensions', () => {
     const initial = unwrap(startMatch(base(), 0, seeded(2), { width: 6, height: 8 }));
     if (!initial.match) throw new Error('Expected match');
     const end: Session = { ...initial, scores: { alice: 0, bob: 2 },
       match: { status: 'finished', board: initial.match.board,
-        roles: { warder: 'alice', prisoner: 'bob' }, positions: initial.match.positions,
+        roles: { warden: 'alice', prisoner: 'bob' }, positions: initial.match.positions,
         outcome: { winner: 'bob', reason: 'escape' }, rematchVotes: { alice: true } } };
     const next = unwrap(voteRematch(freeze(end), 'bob', true, 400, seeded(4)));
-    expect(next.match?.roles.warder).toBe('bob');
+    expect(next.match?.roles.warden).toBe('bob');
     expect(next.match?.board.width).toBe(6); expect(next.match?.board.height).toBe(8);
     expect(next.scores.bob).toBe(2);
   });
@@ -330,7 +330,7 @@ describe('rematch and reset', () => {
     expect(reset).toEqual(base());
     expect(reset).not.toBe(input);
     const seen = new Set<string>();
-    for (let seed = 0; seed < 20; seed++) seen.add(unwrap(startMatch(reset, 1000, seeded(seed))).match!.roles.warder);
+    for (let seed = 0; seed < 20; seed++) seen.add(unwrap(startMatch(reset, 1000, seeded(seed))).match!.roles.warden);
     expect(seen.size).toBe(2);
   });
   it('runs a scripted match, mutual rematch, second win, then reset', () => {
@@ -340,11 +340,11 @@ describe('rematch and reset', () => {
     session = unwrap(voteRematch(session, 'alice', true, 400, seeded(8)));
     session = unwrap(voteRematch(session, 'bob', true, 500, seeded(8)));
     if (session.match?.status !== 'active') throw new Error('Expected active');
-    // Walk the warder toward the prisoner; the prisoner deliberately walks toward capture.
+    // Walk the warden toward the prisoner; the prisoner deliberately walks toward capture.
     for (let step = 0; step < 1000 && session.match?.status === 'active'; step++) {
       const match = session.match;
-      const role = match.turn.playerId === match.roles.warder ? 'warder' : 'prisoner';
-      const target = match.positions[role === 'warder' ? 'prisoner' : 'warder'];
+      const role = match.turn.playerId === match.roles.warden ? 'warden' : 'prisoner';
+      const target = match.positions[role === 'warden' ? 'prisoner' : 'warden'];
       const path = pathTo(match.board, match.positions[role], target);
       session = unwrap(move(session, match.turn.playerId, path[0]!, match.turn.startedAt + 1));
     }
@@ -360,7 +360,7 @@ function pathTo(board: Board, start: Coordinate, target: Coordinate): string[] {
   for (let i = 0; i < queue.length; i++) {
     const node = queue[i]!;
     if (node.position.x === target.x && node.position.y === target.y) return node.path;
-    for (const action of legalMoves(board, node.position, 'warder')) {
+    for (const action of legalMoves(board, node.position, 'warden')) {
       const key = `${action.target.x},${action.target.y}`;
       if (!seen.has(key)) { seen.add(key); queue.push({ position: action.target, path: [...node.path, action.direction] }); }
     }
