@@ -2,6 +2,7 @@
 
 import type { DashboardState, GameServer } from './events.js';
 import { players } from './state.js';
+import { getGames, getWaiting } from './game.js';
 
 // Collect the current numbers (used by the terminal AND the admin page)
 export function getDashboardState(io: GameServer): DashboardState {
@@ -9,7 +10,14 @@ export function getDashboardState(io: GameServer): DashboardState {
     // Only the main namespace '/', so admins are not counted as players
     connected: io.of('/').sockets.size,
     players: [...players.values()],
+    games: getGames(),
+    waiting: getWaiting(),
   };
+}
+
+// Refresh the admin page without printing or logging (e.g. after every move)
+export function sendDashboard(io: GameServer): void {
+  io.of('/admin').emit('admin:dashboard', getDashboardState(io));
 }
 
 export function printDashboard(io: GameServer, event: string): void {
@@ -26,6 +34,9 @@ export function printDashboard(io: GameServer, event: string): void {
       console.log(`  ${i + 1}. ${name}`);
     });
   }
+  state.games.forEach((g) => {
+    console.log(`  Game ${g.id}: ${g.players.map((p) => `${p.nickname} (${p.role ?? '-'}, ${p.score})`).join(' vs ')} [${g.status}]`);
+  });
 
   // Also push the update (and what happened) live to every logged-in admin page
   io.of('/admin').emit('admin:dashboard', state, event);

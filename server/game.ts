@@ -3,7 +3,8 @@
 // Session). This file keeps the current Session of each game, calls the core,
 // and connects the result to sockets and timers.
 
-import type { GameServer, GameSocket } from './events.js';
+import type { GameServer, GameSocket, GameSummary } from './events.js';
+import { sendDashboard } from './dashboard.js';
 import {
   createSession,
   move,
@@ -67,6 +68,36 @@ const REASONS: Record<ErrorCode, string> = {
 export function broadcastState(io: GameServer, g: Game): void {
   const state = toGameState(g.session, g.names, Date.now());
   if (state) io.to(channel(g)).emit('game:state', state);
+  sendDashboard(io); // keep the admin page's Games list live
+}
+
+// ---- Admin view ---------------------------------------------------------------
+
+// Every running game with its two players, for the admin page
+export function getGames(): GameSummary[] {
+  return [...games.values()].map((g) => {
+    const m = g.session.match;
+    const status: GameSummary['status'] =
+      g.ready !== null ? 'ready' : g.paused !== null ? 'paused' : m?.status === 'finished' ? 'finished' : 'playing';
+    return {
+      id: g.id,
+      players: g.session.players.map((id) => ({
+        nickname: g.names[id] ?? id,
+        role: m ? (m.roles.warden === id ? 'warden' : 'prisoner') : null,
+        score: g.session.scores[id] ?? 0,
+      })),
+      status,
+      turn: status === 'playing' && m?.status === 'active' ? g.names[m.turn.playerId] ?? null : null,
+      ready: g.ready ? [...g.ready].map((id) => g.names[id] ?? id) : [],
+      winner: m?.status === 'finished' ? g.names[m.outcome.winner] ?? null : null,
+      state: toGameState(g.session, g.names, Date.now()),
+    };
+  });
+}
+
+// Joined players who are not in a game yet (waiting for an opponent)
+export function getWaiting(): string[] {
+  return [...players].filter(([id]) => !gameOf.has(id)).map(([, name]) => name);
 }
 
 // ---- D. Turn timer ----------------------------------------------------------
@@ -128,7 +159,7 @@ function sendReadyStatus(io: GameServer, g: Game): void {
   io.to(channel(g)).emit('game:readyStatus', {
     waiting: g.ready !== null,
     ready: g.ready ? [...g.ready].map((id) => g.names[id] ?? id) : [],
-  });
+  });  sendDashboard(io);
 }
 
 // Tell both players about pause requests and the paused state
@@ -139,6 +170,7 @@ function sendPauseStatus(io: GameServer, g: Game): void {
     remainingMs: g.paused ? g.paused.remainingMs : null,
     resumeReady: g.paused ? [...g.paused.resume].map((id) => g.names[id] ?? id) : [],
   });
+  sendDashboard(io);
 }
 
 // g.session already holds a fresh active match.
@@ -167,6 +199,7 @@ function destroyGame(io: GameServer, g: Game): void {
   games.delete(g.id);
   for (const id of g.session.players) gameOf.delete(id);
   io.in(channel(g)).socketsLeave(channel(g));
+  sendDashboard(io);
 }
 
 // Pair up joined players who aren't in a game yet.
