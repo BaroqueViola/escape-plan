@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { io, type Socket } from 'socket.io-client';
 import type { ClientToServerEvents, GameState, MatchInfo, MatchResult, PauseStatus, ReadyStatus, ServerToClientEvents } from '../../server/events';
-import { fixture, fixtureNames, type FixtureName } from './fixtures';
+import { SERVER_URL } from './config';
 
 type GameSocket = Socket<ServerToClientEvents, ClientToServerEvents>;
 type Direction = 'up' | 'down' | 'left' | 'right';
@@ -69,16 +69,12 @@ function PlayerCard({ name, role, score, active, self }: { name: string; role: s
 }
 
 export default function App() {
-  const fixtureParam = import.meta.env.DEV ? new URLSearchParams(location.search).get('fixture') : null;
-  const initialFixture = fixtureNames.includes(fixtureParam as FixtureName) ? fixtureParam as FixtureName : null;
-  const [demo, setDemo] = useState<FixtureName | null>(initialFixture);
   const [connected, setConnected] = useState(false);
   const [joined, setJoined] = useState(false);
   const [nickname, setNickname] = useState('');
   const pendingName = useRef('');
   const socket = useRef<GameSocket | null>(null);
   const [welcome, setWelcome] = useState('');
-  const [players, setPlayers] = useState<string[]>([]);
   const [info, setInfo] = useState<MatchInfo | null>(null);
   const [state, setState] = useState<GameState | null>(null);
   const [result, setResult] = useState<MatchResult | null>(null);
@@ -90,7 +86,7 @@ export default function App() {
   const [elapsed, setElapsed] = useState(0);
 
   useEffect(() => {
-    const client: GameSocket = io(import.meta.env.VITE_SERVER_URL || undefined, { autoConnect: true });
+    const client: GameSocket = io(SERVER_URL || undefined, { autoConnect: true });
     socket.current = client;
     client.on('connect', () => {
       setConnected(true);
@@ -102,7 +98,6 @@ export default function App() {
       setNotice('Connection lost. Reconnecting to the server…');
     });
     client.on('connect_error', () => setNotice('Cannot reach the game server. Retrying…'));
-    client.on('lobby:state', setPlayers);
     client.on('player:welcome', (message) => { setWelcome(message); setJoined(true); setNotice(''); });
     client.on('player:rejected', (message) => { pendingName.current = ''; setNotice(message); });
     client.on('game:started', (value) => { setInfo(value); setState(null); setResult(null); setVotes({}); setReadyStatus(null); setPauseStatus(null); setNotice(''); });
@@ -122,32 +117,31 @@ export default function App() {
     return () => window.clearInterval(id);
   }, [receivedAt]);
 
-  const preview = demo ? fixture(demo) : null;
-  const shownInfo = preview ? preview.info : info;
-  const shownState = preview ? preview.state : state;
-  const shownResult = preview ? preview.result : result ?? (state?.outcome && info ? {
+  const shownInfo = info;
+  const shownState = state;
+  const shownResult = result ?? (state?.outcome && info ? {
     result: state.outcome.winner === info.you.nickname ? 'Win' : 'Lost',
     winner: state.outcome.winner,
     reason: state.outcome.reason,
     scores: state.scores,
   } as MatchResult : null);
-  const shownVotes = preview ? preview.votes : state?.rematchVotes ?? votes;
-  const shownJoined = demo ? true : joined;
+  const shownVotes = state?.rematchVotes ?? votes;
+  const shownJoined = joined;
   // Ready check: board is shown blurred, clock and moves are paused until both press Ready
-  const waitingReady = !demo && !!readyStatus?.waiting;
+  const waitingReady = !!readyStatus?.waiting;
   const iAmReady = !!info && !!readyStatus?.ready.includes(info.you.nickname);
   // Pause: needs the rival's consent; while paused the clock is frozen and moves are blocked
-  const paused = !demo && !!pauseStatus?.paused;
-  const pauseRequestedBy = demo ? null : pauseStatus?.requestedBy ?? null;
+  const paused = !!pauseStatus?.paused;
+  const pauseRequestedBy = pauseStatus?.requestedBy ?? null;
   const iRequestedPause = !!info && pauseRequestedBy === info.you.nickname;
   const rivalRequestedPause = !!pauseRequestedBy && !iRequestedPause;
   const iResumed = !!info && !!pauseStatus?.resumeReady.includes(info.you.nickname);
   const blocked = waitingReady || paused;
-  const canPause = !demo && !blocked && !!info && state?.status === 'active';
+  const canPause = !blocked && !!info && state?.status === 'active';
   const legal = useMemo(() => blocked ? [] : legalDirections(shownState, shownInfo), [shownState, shownInfo, blocked]);
   const myTurn = !blocked && !!shownState && !!shownInfo && shownState.status === 'active' && shownState.turnNickname === shownInfo.you.nickname;
   const remaining = paused ? pauseStatus?.remainingMs ?? 0
-    : shownState?.turnDeadline == null ? 0 : Math.max(0, shownState.turnDeadline - shownState.serverTime - (demo || waitingReady ? 0 : elapsed));
+    : shownState?.turnDeadline == null ? 0 : Math.max(0, shownState.turnDeadline - shownState.serverTime - (waitingReady ? 0 : elapsed));
   const seconds = Math.ceil(remaining / 1000);
 
   function join(event: React.FormEvent) {
@@ -162,7 +156,7 @@ export default function App() {
     socket.current?.emit('game:pauseAnswer', accept);
   }
   function move(direction: Direction) {
-    if (!demo && myTurn && legal.includes(direction) && remaining > 0) {
+    if (myTurn && legal.includes(direction) && remaining > 0) {
       socket.current?.emit('game:move', direction);
     }
   }
@@ -182,7 +176,7 @@ export default function App() {
       <div className="brand"><span className="brand-mark">✦</span><div><strong>ESCAPE<span>PLAN</span></strong><small>CLASSIC</small></div></div>
       <div className="topbar-actions">
         {canPause && <button className="small-button pause-button" disabled={iRequestedPause} onClick={() => socket.current?.emit('game:pauseRequest')}>{iRequestedPause ? 'PAUSE REQUESTED…' : '❚❚ PAUSE'}</button>}
-        <div className={`server-pill${connected || demo ? ' online' : ''}`}><span className="signal" />{connected || demo ? 'ONLINE' : 'CONNECTING'}</div>
+        <div className={`server-pill${connected ? ' online' : ''}`}><span className="signal" />{connected ? 'ONLINE' : 'CONNECTING'}</div>
       </div>
     </header>
     <main className="main-stage">
@@ -194,14 +188,14 @@ export default function App() {
           <form onSubmit={join}><label htmlFor="nickname">NICKNAME</label><input id="nickname" maxLength={20} value={nickname} onChange={(event) => setNickname(event.target.value)} placeholder="Your name" autoComplete="nickname" /><button className="primary-button" disabled={!connected || !nickname.trim()}>JOIN <span>↗</span></button></form>
         </div>
       </section> : !shownState || !shownInfo ? <section className="lobby-panel panel">
-        <div className="lobby-title"><h2>{demo ? 'Welcome, Alex.' : welcome || 'Welcome.'}</h2><p>Waiting for another player.</p></div>
-        <div className="lobby-list"><div className="list-heading"><span>PLAYERS</span><strong>{demo ? 1 : players.length}/2</strong></div>{(demo ? ['Alex'] : players).map((player, index) => <div className="lobby-player" key={player}><span className="slot">0{index + 1}</span><img src="/assets/prisoner.svg" alt="" /><strong>{player}</strong></div>)}{(demo ? 1 : players.length) < 2 && <div className="empty-slot"><span className="slot">02</span><span className="loading-block" />Waiting...</div>}</div>
+        <div className="lobby-title"><h2>{welcome || 'Welcome.'}</h2><p>Waiting for another player.</p></div>
+        <div className="lobby-list"><div className="list-heading"><span>YOUR MATCH</span><strong>1/2</strong></div><div className="lobby-player"><span className="slot">01</span><img src="/assets/prisoner.svg" alt="" /><strong>{pendingName.current || nickname.trim()} (you)</strong></div><div className="empty-slot"><span className="slot">02</span><span className="loading-block" />Waiting for another player...</div></div>
       </section> : <div className="game-layout">
         <section className="game-panel panel"><div className="game-topline"><span className="eyebrow accent">CLASSIC · {shownState.board.width} × {shownState.board.height}</span><span className="match-badge">{shownState.status === 'finished' ? 'FINISHED' : waitingReady ? 'GET READY' : paused ? 'PAUSED' : myTurn ? 'YOUR TURN' : `${shownState.turnNickname}'S TURN`}</span></div><div className="board-area"><Board state={shownState} info={shownInfo} legal={legal} /></div><div className="board-footer"><span><i className="legend-dot wall" /> WALL</span><span><i className="legend-dot tunnel" /> TUNNEL</span><span><i className="legend-dot target" /> MOVE</span></div></section>
         <aside className="sidebar"><div className="panel match-panel"><div className="panel-heading"><span className="eyebrow accent">PLAYERS</span></div><PlayerCard name={shownInfo.you.nickname} role={shownInfo.you.role} score={shownState.scores[shownInfo.you.nickname] ?? 0} active={myTurn} self /><div className="versus">VS</div><PlayerCard name={shownInfo.opponent.nickname} role={shownInfo.opponent.role} score={shownState.scores[shownInfo.opponent.nickname] ?? 0} active={!myTurn && shownState.status === 'active'} self={false} /></div>
           {shownState.status === 'active' ? <div className="panel turn-panel" title="At zero, the server makes a random legal move."><div className="turn-label"><span className="eyebrow accent">TIME LEFT</span></div><div className={`timer${seconds <= 3 ? ' timer-low' : ''}`}><strong>{String(seconds).padStart(2, '0')}</strong><span>SEC</span></div><div className="timer-track"><span style={{ width: `${Math.min(100, remaining / 100)}%` }} /></div></div>
-            : <div className="panel result-panel"><h2>{shownResult?.result === 'Win' ? 'You win' : shownResult?.result === 'Lost' ? 'You lose' : 'Match over'}</h2><p>{shownResult ? shownResult.reason === 'escape' ? `${shownResult.winner} escaped.` : `${shownResult.winner} caught the prisoner.` : 'Loading result…'}</p><button className="primary-button" disabled={!shownResult || !!shownVotes[shownInfo.you.nickname] || !!demo} onClick={() => socket.current?.emit('game:rematchVote', true)}>{shownVotes[shownInfo.you.nickname] ? 'WAITING FOR PLAYER' : 'REMATCH'} <span>↗</span></button></div>}
-          <div className="panel controls-panel"><div className="panel-heading"><span className="eyebrow accent">MOVE</span><span>WASD / ARROWS</span></div><div className="control-grid">{(['up', 'left', 'down', 'right'] as Direction[]).map((direction) => <button key={direction} className={`direction direction-${direction}`} aria-label={`Move ${direction}`} disabled={!legal.includes(direction) || remaining <= 0 || !!demo} onClick={() => move(direction)}><strong>{directions[direction].label}</strong><small>{directions[direction].key}</small></button>)}</div></div>
+            : <div className="panel result-panel"><h2>{shownResult?.result === 'Win' ? 'You win' : shownResult?.result === 'Lost' ? 'You lose' : 'Match over'}</h2><p>{shownResult ? shownResult.reason === 'escape' ? `${shownResult.winner} escaped.` : `${shownResult.winner} caught the prisoner.` : 'Loading result…'}</p><button className="primary-button" disabled={!shownResult || !!shownVotes[shownInfo.you.nickname] } onClick={() => socket.current?.emit('game:rematchVote', true)}>{shownVotes[shownInfo.you.nickname] ? 'WAITING FOR PLAYER' : 'REMATCH'} <span>↗</span></button></div>}
+          <div className="panel controls-panel"><div className="panel-heading"><span className="eyebrow accent">MOVE</span><span>WASD / ARROWS</span></div><div className="control-grid">{(['up', 'left', 'down', 'right'] as Direction[]).map((direction) => <button key={direction} className={`direction direction-${direction}`} aria-label={`Move ${direction}`} disabled={!legal.includes(direction) || remaining <= 0} onClick={() => move(direction)}><strong>{directions[direction].label}</strong><small>{directions[direction].key}</small></button>)}</div></div>
         </aside>
       </div>}
     </main>
@@ -223,6 +217,5 @@ export default function App() {
         <button className="primary-button" autoFocus disabled={iResumed} onClick={() => socket.current?.emit('game:resume')}>{iResumed ? 'WAITING FOR RIVAL' : 'RESUME'} <span>↗</span></button>
       </div>
     </div>}
-    {import.meta.env.DEV && <div className="fixture-switch"><label htmlFor="fixture">PREVIEW</label><select id="fixture" value={demo ?? ''} onChange={(event) => setDemo(event.target.value ? event.target.value as FixtureName : null)}><option value="">LIVE SERVER</option>{fixtureNames.map((name) => <option key={name} value={name}>{name.toUpperCase()}</option>)}</select></div>}
   </div>;
 }

@@ -15,18 +15,24 @@ npm run typecheck
 npm run build
 ```
 
-Start the built game with `npm start`, then open `http://localhost:3000` in two
-browsers. For a two-computer demo, open `http://<server-computer-LAN-IP>:3000`
-on both computers. Players enter nicknames, and the server pairs them
-automatically. The server operator can open `/admin.html` to view connected
-clients and reset scores; set `ADMIN_PASSWORD` before starting the server.
+The server computer is for the admin page only. Set the server computer's LAN
+IP in `client/src/config.ts` (e.g. `http://192.168.1.23:3000`), then:
+
+- **Server computer:** `npm start`. The admin page
+  (`http://localhost:3000/admin.html`) opens automatically to view connected
+  clients and reset scores; set `ADMIN_PASSWORD` before starting the server.
+  Set `NO_OPEN=1` to skip opening the browser.
+- **Each player computer:** `npm run dev:client`, then open
+  `http://localhost:5173`. Players enter nicknames, and the server pairs them
+  automatically.
+
+Step-by-step instructions for macOS, Windows and Linux are in
+[docs/TWO_COMPUTER_SETUP.md](docs/TWO_COMPUTER_SETUP.md).
 
 For client hot reload, run `npm run dev` and `npm run dev:client` in separate
 terminals, then open `http://localhost:5173`. Vite proxies Socket.IO to port
-3000. The browser endpoint defaults to its own origin; `VITE_SERVER_URL` can
-override it at build time. In Vite development, `?fixture=warden` and the
-PREVIEW selector show mock lobby, role, timeout, result, waiting, and reset
-states without starting a match.
+3000. The server address is hard-coded in `client/src/config.ts`
+(`SERVER_URL`); when it is empty, the browser connects to its own origin.
 
 Controls: Arrow keys or WASD, or the on-screen direction buttons. The yellow
 outline marks locally predictable legal destinations; the server validates

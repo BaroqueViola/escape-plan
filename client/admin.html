@@ -2,88 +2,444 @@
 <html lang="en">
 <head>
   <meta charset="utf-8">
-  <title>Escape Plan – Admin</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="theme-color" content="#151c19">
+  <title>Escape Plan — Admin</title>
+  <!-- Same fonts as the game; falls back to system fonts without internet -->
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Barlow+Condensed:wght@700;900&family=DM+Mono:wght@400;500&display=swap" rel="stylesheet">
   <style>
-    body { font-family: system-ui, sans-serif; max-width: 480px; margin: 40px auto; padding: 0 16px; }
-    .error { color: #b00020; }
+    :root {
+      --bg: #151c19; --bar: #111915; --panel: #242e27; --panel-dark: #19231d; --line: #58624f; --line-soft: #435341;
+      --gold: #d9bc62; --gold-light: #f2dc93; --text: #f2f1df; --muted: #adbcae; --dim: #87998a; --ok: #9acb83;
+      --danger: #c9704f; --danger-dark: #8a4a33; --shadow: #0c1210;
+      --display: 'Barlow Condensed', 'Arial Narrow', sans-serif; --mono: 'DM Mono', ui-monospace, Menlo, monospace;
+    }
+    * { box-sizing: border-box; }
+    body { margin: 0; min-height: 100vh; font-family: var(--mono); color: var(--text); background:
+      radial-gradient(circle at 50% -20%, #26352b 0, transparent 48%), linear-gradient(90deg, transparent 98%, #ffffff06 98%), var(--bg);
+      background-size: auto, 28px 28px, auto; }
+    button, input { font: inherit; }
+    button { cursor: pointer; }
+    button:disabled { cursor: not-allowed; }
+    :focus-visible { outline: 3px solid #e6d16d; outline-offset: 3px; }
+    [hidden] { display: none !important; }
+
+    /* Top bar (same as the game) */
+    .topbar { height: 84px; padding: 0 max(32px, calc((100vw - 1180px) / 2)); display: flex; align-items: center; justify-content: space-between; border-bottom: 1px solid #ffffff1b; background: #111915cc; }
+    .brand { display: flex; gap: 13px; align-items: center; }
+    .brand-mark { display: grid; place-items: center; width: 38px; height: 38px; color: #1c2319; background: var(--gold); font-size: 25px;
+      clip-path: polygon(0 0, 82% 0, 82% 18%, 100% 18%, 100% 100%, 18% 100%, 18% 82%, 0 82%); }
+    .brand strong { display: block; font-family: var(--display); font-size: 29px; font-weight: 900; line-height: .8; letter-spacing: .055em; }
+    .brand strong span { color: #dfc56f; }
+    .brand small { display: block; margin-top: 7px; color: #7f998e; font-size: 9px; letter-spacing: .17em; }
+    .pill { white-space: nowrap; display: flex; align-items: center; gap: 9px; border: 1px solid #4a5148; background: #232923; padding: 10px 13px; color: #98a69b; font-size: 10px; letter-spacing: .13em; }
+    .pill .signal { width: 7px; height: 7px; background: #ad765d; box-shadow: 0 0 0 3px #ad765d22; }
+    .pill.online .signal { background: var(--ok); box-shadow: 0 0 0 3px #9acb8322; }
+
+    main { width: min(1180px, calc(100% - 64px)); margin: 0 auto; padding: 48px 0 72px; }
+    .eyebrow { font-size: 10px; font-weight: 500; letter-spacing: .15em; color: #8fa196; }
+    .accent { color: var(--gold); }
+    h1, h2 { font-family: var(--display); font-weight: 900; line-height: .95; letter-spacing: .02em; margin: 0; }
+
+    /* Panels: gold corner + hard pixel shadow */
+    .panel { position: relative; background: var(--panel); border: 1px solid var(--line); box-shadow: 8px 8px 0 var(--shadow); padding: 22px; }
+    .panel::before { content: ""; position: absolute; top: -1px; left: -1px; width: 8px; height: 8px; background: var(--gold); }
+    .panel-heading { display: flex; justify-content: space-between; align-items: center; gap: 12px; margin-bottom: 16px; }
+    .panel-heading > span + span { font-size: 9px; color: var(--dim); letter-spacing: .1em; }
+
+    .primary-button { display: flex; justify-content: space-between; align-items: center; gap: 12px; min-height: 48px; padding: 15px 17px; border: 0;
+      background: var(--gold); color: #182019; font-size: 11px; font-weight: 500; letter-spacing: .09em; box-shadow: 4px 4px 0 #9b8145; transition: transform .12s, box-shadow .12s; }
+    .primary-button:hover:not(:disabled) { transform: translate(2px, 2px); box-shadow: 2px 2px 0 #9b8145; }
+    .primary-button:disabled { opacity: .55; }
+    .primary-button span { font-size: 18px; }
+    .danger-button { background: var(--danger); color: #1d140f; box-shadow: 4px 4px 0 var(--danger-dark); }
+    .danger-button:hover:not(:disabled) { box-shadow: 2px 2px 0 var(--danger-dark); }
+    .ghost-button { background: var(--panel-dark); border: 1px solid #77826b; color: var(--text); padding: 13px 16px; font-size: 11px; letter-spacing: .09em; }
+    .ghost-button:hover { background: #2f3d30; }
+
+    /* Login */
+    .login { max-width: 500px; margin: 40px auto 0; padding: 0; }
+    .login-body { padding: 46px 52px; }
+    .login-body h1 { font-size: 52px; margin: 12px 0 10px; }
+    .login-body p { color: var(--muted); font-size: 12px; line-height: 1.7; margin: 0 0 26px; max-width: 340px; }
+    .login-body form { display: flex; flex-direction: column; gap: 14px; }
+    label { font-size: 10px; color: var(--gold); letter-spacing: .15em; }
+    input { height: 47px; background: #151e19; border: 1px solid #77826b; color: #fff; padding: 0 15px; outline: none; }
+    input::placeholder { color: #748276; }
+    .error { display: flex; align-items: center; gap: 10px; background: #543b2d; border: 1px solid #be9260; color: #fff2d8; padding: 10px 13px; font-size: 12px; }
+    .error::before { content: "!"; display: grid; place-items: center; flex: none; width: 20px; height: 20px; background: #e7b36d; color: #2b261c; font-weight: bold; }
+
+    /* Dashboard */
+    .page-title { display: flex; justify-content: space-between; align-items: end; gap: 20px; margin-bottom: 30px; }
+    .page-title h1 { font-size: clamp(44px, 6vw, 72px); margin-top: 10px; }
+    .page-title p { color: var(--muted); font-size: 11px; margin: 10px 0 0; }
+    .grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)) minmax(300px, 1.1fr); gap: 25px; }
+    .stat strong { display: block; font-family: var(--display); font-size: 84px; line-height: 1; color: #f3d77e; margin-top: 14px; }
+    .stat small { display: block; color: var(--dim); font-size: 10px; margin-top: 6px; letter-spacing: .08em; }
+    .players { grid-column: span 2; }
+    .controls { grid-row: span 2; display: flex; flex-direction: column; }
+    .slot-list { background: var(--panel-dark); border: 1px solid #53604c; }
+    .slot { display: flex; align-items: center; gap: 13px; min-height: 58px; padding: 10px 14px; border-top: 1px solid var(--line-soft); font-size: 12px; }
+    .slot:first-child { border-top: 0; }
+    .slot .num { color: var(--gold); font-size: 11px; }
+    .slot img { width: 34px; height: 34px; image-rendering: pixelated; }
+    .slot strong { font-family: var(--display); font-size: 22px; letter-spacing: .02em; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+    .slot.empty { color: var(--dim); }
+    .controls p { color: var(--muted); font-size: 11px; line-height: 1.7; margin: 0 0 20px; }
+    .controls .primary-button { width: 100%; }
+    .confirm { border: 1px solid var(--danger); background: #3d2a22; padding: 14px; }
+    .confirm p { color: #fff2d8; margin: 0 0 12px; }
+    .confirm div { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
+    .controls .status { margin: 16px 0 0; min-height: 18px; font-size: 11px; color: var(--ok); }
+    .log { margin-top: auto; padding-top: 22px; }
+    .log ol { list-style: none; margin: 0; padding: 0; max-height: 260px; overflow: auto; background: var(--panel-dark); border: 1px solid #53604c; }
+    .log li { display: flex; gap: 12px; padding: 9px 12px; border-top: 1px solid var(--line-soft); font-size: 11px; color: var(--muted); }
+    .log li:first-child { border-top: 0; color: var(--text); }
+    .log time { color: var(--dim); flex: none; }
+    .log .empty { color: var(--dim); }
+
+    /* Games: one card per room (two players each) */
+    .games { grid-column: 1 / -1; }
+    .game-list { display: grid; grid-template-columns: repeat(auto-fill, minmax(320px, 1fr)); gap: 18px; }
+    .game { background: var(--panel-dark); border: 1px solid #53604c; }
+    .game-head { display: flex; justify-content: space-between; align-items: center; gap: 10px; padding: 11px 14px; border-bottom: 1px solid var(--line-soft); }
+    .game-head strong { font-family: var(--display); font-size: 22px; letter-spacing: .03em; }
+    .game-head small { color: var(--dim); font-size: 10px; margin-left: 8px; }
+    .badge { font-size: 9px; letter-spacing: .12em; padding: 5px 8px; border: 1px solid var(--line); color: var(--muted); white-space: nowrap; }
+    .badge.playing { color: var(--ok); border-color: #6f9a5d; }
+    .badge.paused, .badge.ready { color: var(--gold-light); border-color: #9b8145; }
+    .badge.finished { color: #e9a585; border-color: var(--danger); }
+    .game .slot strong { flex: 1; }
+    .game .role, .watch-info .role { color: var(--dim); font-size: 10px; letter-spacing: .1em; }
+    .game .score, .watch-info .score { font-family: var(--display); font-size: 26px; color: #f3d77e; min-width: 26px; text-align: right; }
+    .game .turn, .watch-info .turn { color: var(--ok); font-size: 10px; letter-spacing: .1em; }
+    .game-foot { padding: 9px 14px; border-top: 1px solid var(--line-soft); color: var(--muted); font-size: 11px; }
+    .waiting { margin-top: 16px; color: var(--muted); font-size: 11px; }
+    .no-games { color: var(--dim); font-size: 12px; padding: 16px 14px; background: var(--panel-dark); border: 1px solid #53604c; }
+
+    /* Watch: live board of one game */
+    .watch-button { margin-left: 10px; background: var(--panel); border: 1px solid #77826b; color: var(--text); font-size: 9px; letter-spacing: .1em; padding: 5px 8px; }
+    .watch-button:hover, .watch-button.active { background: var(--gold); color: #182019; border-color: var(--gold); }
+    .game.watching { border-color: var(--gold); box-shadow: inset 3px 0 var(--gold); }
+    .watch { display: grid; grid-template-columns: minmax(0, 420px) minmax(0, 1fr); gap: 26px; margin-bottom: 22px; padding: 18px; background: var(--panel-dark); border: 1px solid var(--gold); }
+    .watch-board { display: grid; gap: 2px; aspect-ratio: 1; background: #1a251b; padding: 8px; box-shadow: 0 0 0 2px #747c62; }
+    .watch-tile { position: relative; overflow: hidden; }
+    .watch-tile img { position: absolute; inset: 0; width: 100%; height: 100%; image-rendering: pixelated; }
+    .watch-tile img.char { width: 76%; height: 76%; left: 12%; top: 10%; filter: drop-shadow(3px 5px 0 #0009); }
+    .watch-info h2 { font-size: 40px; margin: 8px 0 4px; }
+    .watch-info .sub { color: var(--muted); font-size: 11px; margin: 0 0 16px; }
+    .watch-info .slot { background: #1f2a22; border: 1px solid var(--line-soft); margin-bottom: 8px; }
+    .watch-info .slot.active { border-color: var(--gold); box-shadow: inset 3px 0 var(--gold); }
+    .watch-timer { display: flex; align-items: baseline; gap: 8px; color: #f3d77e; margin-top: 14px; }
+    .watch-timer strong { font-family: var(--display); font-size: 60px; line-height: 1; }
+    .watch-timer span { font-size: 11px; color: var(--muted); }
+    .watch-note { margin-top: 10px; color: var(--muted); font-size: 11px; }
+    @media (max-width: 760px) { .watch { grid-template-columns: 1fr; } }
+
+    @media (max-width: 900px) {
+      .grid { grid-template-columns: 1fr 1fr; }
+      .players, .controls { grid-column: span 2; grid-row: auto; }
+    }
+    @media (max-width: 620px) {
+      .topbar { height: 70px; padding: 0 16px; }
+      .brand strong { font-size: 23px; }
+      .brand small { font-size: 7px; }
+      .pill { font-size: 8px; padding: 8px; }
+      main { width: calc(100% - 32px); padding: 30px 0 45px; }
+      .login-body { padding: 28px; }
+      .login-body h1 { font-size: 44px; }
+      .stat strong { font-size: 64px; }
+    }
   </style>
 </head>
 <body>
-  <h1>Escape Plan – Server Dashboard</h1>
+  <header class="topbar">
+    <div class="brand"><span class="brand-mark">✦</span><div><strong>ESCAPE<span>PLAN</span></strong><small>SERVER ADMIN</small></div></div>
+    <div id="pill" class="pill"><span class="signal"></span><span id="pill-text">NOT LOGGED IN</span></div>
+  </header>
 
-  <!-- Shown first: password form -->
-  <form id="login">
-    <input id="password" type="password" placeholder="Admin password" required>
-    <button type="submit">Log in</button>
-    <p id="error" class="error"></p>
-  </form>
+  <main>
+    <!-- Login -->
+    <section id="login" class="panel login">
+      <div class="login-body">
+        <span class="eyebrow accent">RESTRICTED</span>
+        <h1>Admin login</h1>
+        <p>Enter the server password to see connected clients and reset the game.</p>
+        <form id="login-form">
+          <label for="password">PASSWORD</label>
+          <input id="password" type="password" placeholder="Admin password" autocomplete="current-password" required>
+          <p id="error" class="error" role="alert" hidden></p>
+          <button class="primary-button" type="submit">LOG IN <span>↗</span></button>
+        </form>
+      </div>
+    </section>
 
-  <!-- Shown after a correct password -->
-  <section id="dashboard" hidden>
-    <p>Connected clients: <strong id="connected">0</strong></p>
-    <h2>Players</h2>
-    <ol id="players"></ol>
-    <h2>Game controls</h2>
-    <button id="reset" type="button">Reset game and scores</button>
-    <p id="reset-status"></p>
-  </section>
+    <!-- Dashboard (after a correct password) -->
+    <section id="dashboard" hidden>
+      <div class="page-title">
+        <div><span class="eyebrow accent">CLASSIC · SERVER</span><h1>Dashboard</h1><p>Updates live as players connect, join and leave.</p></div>
+      </div>
+
+      <div class="grid">
+        <div class="panel stat">
+          <span class="eyebrow accent">CONNECTED CLIENTS</span>
+          <strong id="connected">0</strong>
+          <small>open connections, incl. nickname screen</small>
+        </div>
+        <div class="panel stat">
+          <span class="eyebrow accent">JOINED PLAYERS</span>
+          <strong id="joined">0</strong>
+          <small>entered a nickname</small>
+        </div>
+
+        <div class="panel controls">
+          <div class="panel-heading"><span class="eyebrow accent">GAME CONTROLS</span></div>
+          <p>Reset sets every player's score to 0, stops the turn timers and starts a fresh match for every game.</p>
+          <button id="reset" class="primary-button danger-button" type="button">RESET GAME &amp; SCORES <span>↺</span></button>
+          <div id="confirm" class="confirm" hidden>
+            <p>Reset all games and scores now?</p>
+            <div>
+              <button id="confirm-yes" class="primary-button danger-button" type="button">YES, RESET</button>
+              <button id="confirm-no" class="ghost-button" type="button">CANCEL</button>
+            </div>
+          </div>
+          <p id="reset-status" class="status" role="status"></p>
+
+          <div class="log">
+            <div class="panel-heading"><span class="eyebrow accent">ACTIVITY</span><span>NEWEST FIRST</span></div>
+            <ol id="log"><li class="empty">No activity yet.</li></ol>
+          </div>
+        </div>
+
+        <div class="panel players">
+          <div class="panel-heading"><span class="eyebrow accent">PLAYERS</span><span id="players-count">0 JOINED</span></div>
+          <div id="players" class="slot-list"></div>
+        </div>
+
+        <div class="panel games">
+          <div class="panel-heading"><span class="eyebrow accent">GAMES</span><span id="games-count">0 RUNNING</span></div>
+          <div id="watch" class="watch" hidden></div>
+          <div id="games" class="game-list"></div>
+          <p id="waiting" class="waiting" hidden></p>
+        </div>
+      </div>
+    </section>
+  </main>
 
   <!-- Socket.IO serves its own browser client at this address automatically -->
   <script src="/socket.io/socket.io.js"></script>
   <script>
-    const form = document.getElementById('login');
-    const passwordInput = document.getElementById('password');
-    const errorText = document.getElementById('error');
-    const dashboard = document.getElementById('dashboard');
-    const connectedEl = document.getElementById('connected');
-    const playersEl = document.getElementById('players');
-    const resetButton = document.getElementById('reset');
-    const resetStatus = document.getElementById('reset-status');
+    const $ = (id) => document.getElementById(id);
+    const form = $('login-form'), passwordInput = $('password'), errorText = $('error');
+    const pill = $('pill'), pillText = $('pill-text');
+    const resetButton = $('reset'), confirmBox = $('confirm'), resetStatus = $('reset-status');
+    const logList = $('log');
+    let socket = null;
+
+    function setPill(online, text) {
+      pill.classList.toggle('online', online);
+      pillText.textContent = text;
+    }
+    function showError(message) {
+      errorText.textContent = message;
+      errorText.hidden = !message;
+    }
+    const time = () => new Date().toLocaleTimeString();
+
+    // Players list: one row per nickname (textContent, never innerHTML, so names can't inject HTML)
+    function renderPlayers(names) {
+      const list = $('players');
+      list.replaceChildren();
+      names.forEach((name, i) => {
+        const row = document.createElement('div');
+        row.className = 'slot';
+        const num = document.createElement('span'); num.className = 'num'; num.textContent = String(i + 1).padStart(2, '0');
+        const img = document.createElement('img'); img.src = '/assets/prisoner.svg'; img.alt = '';
+        const label = document.createElement('strong'); label.textContent = name;
+        row.append(num, img, label);
+        list.appendChild(row);
+      });
+      if (names.length === 0) {
+        const row = document.createElement('div');
+        row.className = 'slot empty';
+        row.textContent = 'No players have joined yet.';
+        list.appendChild(row);
+      }
+      $('players-count').textContent = `${names.length} JOINED`;
+    }
+
+    // Games: one card per room with its two players (textContent only, like the player list)
+    const STATUS = { ready: 'WAITING FOR READY', playing: 'PLAYING', paused: 'PAUSED', finished: 'FINISHED' };
+    const el = (tag, className, text) => {
+      const node = document.createElement(tag);
+      if (className) node.className = className;
+      if (text !== undefined) node.textContent = text;
+      return node;
+    };
+    // Watch: the admin picks one game and sees its board live
+    let watchingId = null, lastGames = [], lastWaiting = [], stateAt = 0;
+    function renderWatch() {
+      const box = $('watch');
+      const game = lastGames.find((g) => g.id === watchingId);
+      if (!game || !game.state) { box.hidden = true; box.replaceChildren(); if (!game) watchingId = null; return; }
+      const st = game.state;
+      box.hidden = false;
+      box.replaceChildren();
+      const board = el('div', 'watch-board');
+      board.style.gridTemplateColumns = `repeat(${st.board.width}, 1fr)`;
+      st.board.cells.forEach((tile, i) => {
+        const x = i % st.board.width, y = Math.floor(i / st.board.width);
+        const cell = el('div', 'watch-tile');
+        const floor = el('img'); floor.src = `/assets/${tile}.svg`; floor.alt = '';
+        cell.appendChild(floor);
+        ['warden', 'prisoner'].forEach((role) => {
+          const pos = st.positions[role];
+          if (pos.x === x && pos.y === y) { const c = el('img', 'char'); c.src = `/assets/${role}.svg`; c.alt = role; cell.appendChild(c); }
+        });
+        board.appendChild(cell);
+      });
+      const info = el('div', 'watch-info');
+      const close = el('button', 'ghost-button', 'CLOSE ✕');
+      close.addEventListener('click', () => { watchingId = null; renderGames(lastGames, lastWaiting); });
+      const top = el('div', 'panel-heading');
+      top.append(el('span', 'eyebrow accent', `WATCHING · ROOM game:${game.id}`), close);
+      info.append(top, el('h2', '', `GAME ${game.id}`), el('p', 'sub', STATUS[game.status] || game.status));
+      game.players.forEach((p) => {
+        const row = el('div', `slot${game.turn === p.nickname ? ' active' : ''}`);
+        const img = el('img'); img.src = `/assets/${p.role === 'warden' ? 'warden' : 'prisoner'}.svg`; img.alt = '';
+        const name = el('strong', '', p.nickname); name.style.flex = '1';
+        row.append(img, name);
+        if (game.turn === p.nickname) row.appendChild(el('span', 'turn', '▶ TURN'));
+        row.append(el('span', 'role', (p.role || '').toUpperCase()), el('span', 'score', String(p.score)));
+        info.appendChild(row);
+      });
+      if (game.status === 'playing') {
+        const timer = el('div', 'watch-timer');
+        timer.append(el('strong', '', '–'), el('span', '', 'seconds left this turn'));
+        timer.id = 'watch-timer';
+        info.appendChild(timer);
+      }
+      const note = game.status === 'finished' && st.outcome
+        ? `${st.outcome.winner} won by ${st.outcome.reason === 'escape' ? 'escaping through the tunnel' : 'catching the prisoner'}.`
+        : game.status === 'paused' ? 'Both players agreed to pause. The clock is stopped.'
+        : game.status === 'ready' ? 'Waiting for both players to press Ready.' : 'Updates live after every move.';
+      info.appendChild(el('p', 'watch-note', note));
+      box.append(board, info);
+      tickWatch();
+    }
+    function tickWatch() {
+      const timer = document.querySelector('#watch-timer strong');
+      const game = lastGames.find((g) => g.id === watchingId);
+      if (!timer || !game || !game.state || game.state.turnDeadline == null) return;
+      const left = game.state.turnDeadline - game.state.serverTime - (Date.now() - stateAt);
+      timer.textContent = String(Math.max(0, Math.ceil(left / 1000)));
+    }
+    setInterval(tickWatch, 200);
+
+    function renderGames(games, waiting) {
+      lastGames = games; lastWaiting = waiting;
+      const list = $('games');
+      list.replaceChildren();
+      games.forEach((game) => {
+        const card = el('div', `game${game.id === watchingId ? ' watching' : ''}`);
+        const head = el('div', 'game-head');
+        const title = el('div');
+        title.append(el('strong', '', `GAME ${game.id}`), el('small', '', `room game:${game.id}`));
+        const right = el('div');
+        const watch = el('button', `watch-button${game.id === watchingId ? ' active' : ''}`, game.id === watchingId ? 'WATCHING' : 'WATCH ▸');
+        watch.type = 'button';
+        watch.addEventListener('click', () => { watchingId = game.id; renderGames(lastGames, lastWaiting); });
+        right.append(el('span', `badge ${game.status}`, STATUS[game.status] || game.status), watch);
+        head.append(title, right);
+        card.appendChild(head);
+        game.players.forEach((p) => {
+          const row = el('div', 'slot');
+          const img = el('img'); img.src = p.role === 'warden' ? '/assets/warden.svg' : '/assets/prisoner.svg'; img.alt = '';
+          const name = el('strong', '', p.nickname);
+          row.append(img, name);
+          if (game.turn === p.nickname) row.appendChild(el('span', 'turn', '▶ TURN'));
+          if (game.status === 'ready') row.appendChild(el('span', 'turn', game.ready.includes(p.nickname) ? '✓ READY' : 'NOT READY'));
+          row.append(el('span', 'role', (p.role || '').toUpperCase()), el('span', 'score', String(p.score)));
+          card.appendChild(row);
+        });
+        if (game.status === 'finished' && game.winner) card.appendChild(el('div', 'game-foot', `${game.winner} won · waiting for rematch votes`));
+        list.appendChild(card);
+      });
+      if (games.length === 0) list.appendChild(el('div', 'no-games', 'No games yet. A game starts when two players have joined.'));
+      $('games-count').textContent = `${games.length} RUNNING`;
+      renderWatch();
+      const waitingText = $('waiting');
+      waitingText.hidden = waiting.length === 0;
+      waitingText.textContent = `Waiting in the lobby for an opponent: ${waiting.join(', ')}`;
+    }
+
+    function addLog(message) {
+      const empty = logList.querySelector('.empty');
+      if (empty) empty.remove();
+      const li = document.createElement('li');
+      const t = document.createElement('time'); t.textContent = time();
+      const text = document.createElement('span'); text.textContent = message;
+      li.append(t, text);
+      logList.prepend(li);
+      while (logList.children.length > 50) logList.lastChild.remove(); // keep the newest 50
+    }
 
     form.addEventListener('submit', (event) => {
       event.preventDefault(); // stop the browser reloading the page
-      errorText.textContent = '';
+      showError('');
+      if (socket) socket.disconnect();
 
       // Connect to the /admin namespace, sending the password in the handshake
-      const socket = io('/admin', { auth: { password: passwordInput.value } });
+      socket = io('/admin', { auth: { password: passwordInput.value } });
 
       socket.on('connect', () => {
-        form.hidden = true;
-        dashboard.hidden = false;
+        $('login').hidden = true;
+        $('dashboard').hidden = false;
+        setPill(true, 'SERVER ONLINE');
       });
 
       socket.on('connect_error', (err) => {
-        errorText.textContent = err.message; // e.g. "Wrong admin password"
-        socket.disconnect();                 // stop it retrying with the wrong password
-      });
-
-      socket.on('admin:dashboard', (state) => {
-        connectedEl.textContent = state.connected;
-
-        // Rebuild the list of names
-        playersEl.replaceChildren();
-        for (const name of state.players) {
-          const li = document.createElement('li');
-          li.textContent = name; // textContent, never innerHTML, so names can't inject HTML
-          playersEl.appendChild(li);
-        }
-        if (state.players.length === 0) {
-          playersEl.innerHTML = '<li><em>No players yet</em></li>';
+        if ($('dashboard').hidden) {
+          showError(err.message);  // e.g. "Wrong admin password"
+          setPill(false, 'NOT LOGGED IN');
+          socket.disconnect();     // stop it retrying with the wrong password
+        } else {
+          setPill(false, 'RECONNECTING…'); // server restarted: Socket.IO keeps retrying
         }
       });
+      socket.on('disconnect', () => setPill(false, 'RECONNECTING…'));
 
-      // Reset button: ask the server to reset, then show the result
-      resetButton.onclick = () => {
-        if (!confirm('Reset the current game and both players\' scores?')) return;
+      socket.on('admin:dashboard', (state, eventLabel) => {
+        $('connected').textContent = state.connected;
+        $('joined').textContent = state.players.length;
+        renderPlayers(state.players);
+        stateAt = Date.now(); // the board's time is measured from when it arrived
+        renderGames(state.games || [], state.waiting || []);
+        if (eventLabel) addLog(eventLabel);
+      });
+    });
 
-        resetButton.disabled = true;
-        socket.emit('admin:reset', (ok) => {
-          resetButton.disabled = false;
-          resetStatus.textContent = ok
-            ? `Game reset at ${new Date().toLocaleTimeString()}`
-            : 'Reset failed';
-        });
-      };
+    // Reset: ask for confirmation inside the page, then send admin:reset
+    resetButton.addEventListener('click', () => {
+      resetButton.hidden = true;
+      confirmBox.hidden = false;
+      $('confirm-no').focus();
+    });
+    $('confirm-no').addEventListener('click', () => {
+      confirmBox.hidden = true;
+      resetButton.hidden = false;
+    });
+    $('confirm-yes').addEventListener('click', () => {
+      if (!socket) return;
+      $('confirm-yes').disabled = true;
+      socket.emit('admin:reset', (ok) => {
+        $('confirm-yes').disabled = false;
+        confirmBox.hidden = true;
+        resetButton.hidden = false;
+        resetStatus.textContent = ok ? `✓ Game reset at ${time()}` : 'Reset failed';
+      });
     });
   </script>
 </body>

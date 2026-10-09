@@ -46,17 +46,30 @@ export interface MatchResult {
 
 // ---- Events ------------------------------------------------------------------
 
+// One running game (Socket.IO room game:<id>), as the admin page sees it
+export interface GameSummary {
+  id: string;
+  players: { nickname: string; role: Role | null; score: number }[];
+  status: 'ready' | 'playing' | 'paused' | 'finished'; // ready = waiting for both to press Ready
+  turn: string | null; // nickname whose turn it is, while playing
+  ready: string[]; // nicknames who pressed Ready, during the ready check
+  winner: string | null; // nickname, once the match is finished
+  state: GameState | null; // the full board, so the admin can watch the game live
+}
+
 // What the admin page receives
 export interface DashboardState {
   connected: number; // all open player connections
   players: string[]; // nicknames of players who have joined
+  games: GameSummary[]; // one per room, two players each
+  waiting: string[]; // joined players not in a game yet
 }
 
 export interface ServerToClientEvents {
   'lobby:state': (players: string[]) => void;
   'player:welcome': (message: string) => void;
   'player:rejected': (reason: string) => void;
-  'admin:dashboard': (state: DashboardState) => void;
+  'admin:dashboard': (state: DashboardState, event?: string) => void; // event: what just happened, for the activity log
 
   // Gameplay
   'game:readyStatus': (status: ReadyStatus) => void; // ready check: who is ready, still waiting?
