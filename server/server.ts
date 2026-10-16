@@ -2,6 +2,7 @@
 // Express serves the web page; Socket.IO handles live game events.
 // Run with `npm start`; the admin page opens automatically
 
+import './env.js'; // first: loads .env (ElevenLabs key) before the other modules read it
 import express from 'express';
 import { createServer } from 'http';
 import { Server } from 'socket.io';
@@ -12,6 +13,9 @@ import type { GameServer } from './events.js';
 import { registerLobby } from './lobby.js';
 import { registerAdmin} from "./admin.js";
 import { registerGame } from './game.js';
+import { registerSocial, warmEmoteVoices } from './social.js';
+import { getClip } from './voice.js';
+import { emoteSvg } from '../client/src/social/emoteArt.js';
 
 const PORT = Number(process.env.PORT) || 3000;
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
@@ -31,12 +35,35 @@ app.get(ADMIN_PATH, (_req, res) => res.sendFile(path.join(__dirname, '..', 'clie
 app.use('/assets', express.static(path.join(__dirname, '..', 'client', 'dist', 'assets')));
 app.get('/', (_req, res) => res.redirect(ADMIN_PATH));
 
+// Emote pictures for the admin page's Watch view (same pixels as the game)
+app.get('/emotes/:id.svg', (req, res) => {
+  const svg = emoteSvg(req.params.id);
+  if (!svg) {
+    res.sendStatus(404);
+    return;
+  }
+  res.type('image/svg+xml').send(svg);
+});
+
+// Voice clips made by the server (voice.ts). The browser only ever gets the
+// audio by id, never the ElevenLabs key.
+app.get('/voice/:id', (req, res) => {
+  const audio = getClip(req.params.id);
+  if (!audio) {
+    res.sendStatus(404); // the game plays a plain sound effect instead
+    return;
+  }
+  res.set({ 'Content-Type': 'audio/mpeg', 'Cache-Control': 'public, max-age=31536000, immutable', 'Access-Control-Allow-Origin': '*' });
+  res.send(audio);
+});
+
 // Admin namespace: set up once, not per player
 registerAdmin(io);
 
 
 // Runs once per client; each area adds its own event handlers
 io.on('connection', (socket) => {
+  registerSocial(io, socket); // first, so on disconnect it still knows the nickname
   registerLobby(io, socket);
   registerGame(io, socket);
 });
@@ -47,6 +74,7 @@ httpServer.listen(PORT, () => {
   console.log(`Server running at http://localhost:${PORT}`);
   console.log(`Admin page: ${adminUrl}`);
   if (process.env.NO_OPEN !== '1') openInBrowser(adminUrl);
+  void warmEmoteVoices(); // make the 6 emote voice lines once (cached on disk afterwards)
 });
 
 // Opens the admin page in the default browser on macOS, Windows or Linux

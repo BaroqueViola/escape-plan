@@ -2,6 +2,10 @@ import { useEffect, useMemo, useRef, useState } from 'react';
 import { io, type Socket } from 'socket.io-client';
 import type { ClientToServerEvents, GameState, MatchInfo, MatchResult, PauseStatus, ReadyStatus, ServerToClientEvents } from '../../server/events';
 import { SERVER_URL } from './config';
+import { useSocial } from './social/useSocial';
+import { BoardStage, ChatPanel, EmoteStrip, EyePill, KeyList, SpectateList, crowdEmotes, emotesFor } from './social/SocialUI';
+import { isMuted, setMuted, unlockAudio } from './social/sound';
+import './social/social.css';
 
 type GameSocket = Socket<ServerToClientEvents, ClientToServerEvents>;
 type Direction = 'up' | 'down' | 'left' | 'right';
@@ -60,10 +64,10 @@ function StatusList({ names, ready, you }: { names: string[]; ready: string[]; y
   </ul>;
 }
 
-function PlayerCard({ name, role, score, active, self }: { name: string; role: string; score: number; active: boolean; self: boolean }) {
+function PlayerCard({ name, role, score, active, self, label }: { name: string; role: string; score: number; active: boolean; self: boolean; label?: string }) {
   return <div className={`player-card${active ? ' player-active' : ''}`}>
     <div className={`portrait portrait-${role}`}><img src={`/assets/${role}.svg`} alt="" /></div>
-    <div className="player-copy"><span className="eyebrow">{self ? 'YOU' : 'RIVAL'} · {role.toUpperCase()}</span><strong>{name}</strong></div>
+    <div className="player-copy"><span className="eyebrow">{label ?? (self ? 'YOU' : 'RIVAL')} · {role.toUpperCase()}</span><strong>{name}</strong></div>
     <div className="score"><span>PTS</span><strong>{score}</strong></div>
   </div>;
 }
@@ -82,6 +86,8 @@ export default function App() {
   const [readyStatus, setReadyStatus] = useState<ReadyStatus | null>(null);
   const [pauseStatus, setPauseStatus] = useState<PauseStatus | null>(null);
   const [notice, setNotice] = useState('');
+  const [kickedReason, setKickedReason] = useState<string | null>(null); // shown on the name screen after the admin kicks you
+  const kickedRef = useRef(false);
   const [receivedAt, setReceivedAt] = useState(0);
   const [elapsed, setElapsed] = useState(0);
 
@@ -93,9 +99,23 @@ export default function App() {
       setNotice('');
       if (pendingName.current) client.emit('player:join', pendingName.current);
     });
-    client.on('disconnect', () => {
+    client.on('disconnect', (reason) => {
       setConnected(false); setJoined(false); setInfo(null); setState(null); setResult(null); setReadyStatus(null); setPauseStatus(null);
+      if (kickedRef.current) {
+        kickedRef.current = false;
+        client.connect(); // kicked: reconnect straight away so the player can join again
+        return;
+      }
       setNotice('Connection lost. Reconnecting to the server…');
+      if (reason === 'io server disconnect') client.connect(); // Socket.IO does not retry these on its own
+    });
+    // The admin kicked us: back to the name screen with the reason
+    client.on('player:kicked', (reason) => {
+      kickedRef.current = true;
+      pendingName.current = ''; // don't rejoin automatically
+      setNickname('');
+      setNotice('');
+      setKickedReason(reason);
     });
     client.on('connect_error', () => setNotice('Cannot reach the game server. Retrying…'));
     client.on('player:welcome', (message) => { setWelcome(message); setJoined(true); setNotice(''); });
@@ -111,6 +131,11 @@ export default function App() {
     client.on('server:reset', (message) => { setInfo(null); setState(null); setResult(null); setVotes({}); setReadyStatus(null); setPauseStatus(null); setNotice(message); });
     return () => { client.removeAllListeners(); client.disconnect(); socket.current = null; };
   }, []);
+
+  // Chat, emotes and spectating (after the socket is created above)
+  const social = useSocial(socket);
+  const chatInput = useRef<HTMLInputElement>(null);
+  const [soundOff, setSoundOff] = useState(isMuted());
 
   useEffect(() => {
     const id = window.setInterval(() => setElapsed(performance.now() - receivedAt), 100);
@@ -150,10 +175,19 @@ export default function App() {
     if (!value || !socket.current?.connected) return;
     pendingName.current = value;
     setNotice('');
+    setKickedReason(null);
     socket.current.emit('player:join', value);
   }
   function answerPause(accept: boolean) {
     socket.current?.emit('game:pauseAnswer', accept);
+  }
+  // Emotes for whoever is on screen: your role's three, or the crowd set when watching
+  const watching = !info && social.watching?.state ? social.watching : null;
+  const myEmotes = !social.features.emotes ? [] : info ? emotesFor(info.you.role) : watching ? crowdEmotes : [];
+  const inChat = !!info || !!watching;
+  function openChat() {
+    social.setChatOpen(true);
+    window.setTimeout(() => chatInput.current?.focus(), 0);
   }
   function move(direction: Direction) {
     if (myTurn && legal.includes(direction) && remaining > 0) {
@@ -163,6 +197,10 @@ export default function App() {
   useEffect(() => {
     function onKey(event: KeyboardEvent) {
       if (event.target instanceof HTMLInputElement) return;
+      const emote = myEmotes[Number(event.key) - 1];
+      if (emote) { event.preventDefault(); social.sendEmote(emote); return; }
+      if (event.key === 'Enter' && inChat && social.features.chat && !(event.target instanceof HTMLButtonElement)) { event.preventDefault(); openChat(); return; }
+      if (event.key === 'Escape' && social.chatOpen) { social.setChatOpen(false); return; }
       const lookup: Record<string, Direction> = { ArrowUp: 'up', ArrowLeft: 'left', ArrowDown: 'down', ArrowRight: 'right', w: 'up', a: 'left', s: 'down', d: 'right' };
       const direction = lookup[event.key.length === 1 ? event.key.toLowerCase() : event.key];
       if (direction) { event.preventDefault(); move(direction); }
@@ -171,10 +209,18 @@ export default function App() {
     return () => window.removeEventListener('keydown', onKey);
   });
 
-  return <div className="app-shell">
+  // Spectator view: the watched game's board, players and clock
+  const watchedRemaining = watching?.state?.turnDeadline == null || !watching.state || watching.status !== 'playing' ? 0
+    : Math.max(0, watching.state.turnDeadline - watching.state.serverTime - (performance.now() - social.watchingAt));
+  const moveControls = <><div className="panel-heading"><span className="eyebrow accent">MOVE</span><span>WASD / ARROWS</span></div><div className="control-grid">{(['up', 'left', 'down', 'right'] as Direction[]).map((direction) => <button key={direction} className={`direction direction-${direction}`} aria-label={`Move ${direction}`} disabled={!legal.includes(direction) || remaining <= 0} onClick={() => move(direction)}><strong>{directions[direction].label}</strong><small>{directions[direction].key}</small></button>)}</div></>;
+  const me = info?.you.nickname ?? (pendingName.current || nickname.trim());
+
+  return <div className="app-shell" onPointerDown={unlockAudio}>
     <header className="topbar">
       <div className="brand"><span className="brand-mark">✦</span><div><strong>ESCAPE<span>PLAN</span></strong><small>CLASSIC</small></div></div>
       <div className="topbar-actions">
+        {inChat && social.features.spectate && <EyePill count={social.spectators.count} names={social.spectators.names} />}
+        {inChat && social.features.emotes && <button className="small-button sound-button" aria-pressed={!soundOff} onClick={() => { setMuted(!soundOff); setSoundOff(!soundOff); }}>{soundOff ? '🔇 SOUND OFF' : '🔊 SOUND ON'}</button>}
         {canPause && <button className="small-button pause-button" disabled={iRequestedPause} onClick={() => socket.current?.emit('game:pauseRequest')}>{iRequestedPause ? 'PAUSE REQUESTED…' : '❚❚ PAUSE'}</button>}
         <div className={`server-pill${connected ? ' online' : ''}`}><span className="signal" />{connected ? 'ONLINE' : 'CONNECTING'}</div>
       </div>
@@ -182,20 +228,49 @@ export default function App() {
     <main className="main-stage">
       {canPause && rivalRequestedPause && <div className="pause-request" role="alert"><span><strong>{pauseRequestedBy}</strong> wants to pause the game.</span><div><button className="small-button" onClick={() => answerPause(true)}>ACCEPT</button><button className="small-button ghost" onClick={() => answerPause(false)}>DECLINE</button></div></div>}
       {notice && <div className="notice" role="alert"><span>!</span>{notice}<button aria-label="Dismiss message" onClick={() => setNotice('')}>×</button></div>}
+      {!shownJoined && kickedReason !== null && <div className="kicked-banner" role="alert">
+        <span className="kicked-icon" aria-hidden="true">⏏</span>
+        <div><small>REMOVED BY THE ADMIN</small><strong>You are KICKED</strong><q>Reason: {kickedReason}</q><span>You can enter a name to join again.</span></div>
+        <button aria-label="Dismiss message" onClick={() => setKickedReason(null)}>×</button>
+      </div>}
       {!shownJoined ? <section className="entry-panel panel">
         <div className="entry-art"><img src="/assets/prisoner.svg" alt="Pixel art prisoner" /></div>
         <div className="entry-content"><h2>Join game</h2><p>Enter a nickname to find a match.</p>
           <form onSubmit={join}><label htmlFor="nickname">NICKNAME</label><input id="nickname" maxLength={20} value={nickname} onChange={(event) => setNickname(event.target.value)} placeholder="Your name" autoComplete="nickname" /><button className="primary-button" disabled={!connected || !nickname.trim()}>JOIN <span>↗</span></button></form>
         </div>
-      </section> : !shownState || !shownInfo ? <section className="lobby-panel panel">
+      </section> : (!shownState || !shownInfo) && watching?.state ? <div className="game-layout">
+        <section className="game-panel panel"><div className="game-topline"><span className="eyebrow accent">WATCHING · GAME {watching.id}</span><span className="match-badge">{watching.status === 'finished' ? 'FINISHED' : watching.status === 'ready' ? 'GET READY' : watching.status === 'paused' ? 'PAUSED' : `${watching.turn ?? ''}'S TURN`}</span></div>
+          <div className="board-area"><BoardStage state={watching.state} bubbles={social.bubbles} board={<Board state={watching.state} info={{ you: { nickname: '', role: 'warden' }, opponent: { nickname: '', role: 'prisoner' } }} legal={[]} />} /></div>
+          <div className="board-footer"><span><i className="legend-dot wall" /> WALL</span><span><i className="legend-dot tunnel" /> TUNNEL</span></div>
+          {myEmotes.length > 0 && <EmoteStrip label="CROWD" emotes={myEmotes} readyAt={social.emoteReadyAt} onSend={social.sendEmote} />}
+        </section>
+        <aside className="sidebar"><div className="panel match-panel"><div className="panel-heading"><span className="eyebrow accent">WATCHING</span><span>{watching.spectators.length} SPECTATOR{watching.spectators.length === 1 ? '' : 'S'}</span></div>
+            {watching.players.map((p, i) => <div key={p.nickname}>{i > 0 && <div className="versus">VS</div>}<PlayerCard name={p.nickname} role={p.role ?? 'prisoner'} score={p.score} active={watching.turn === p.nickname} self={false} label={watching.turn === p.nickname ? '▶ TURN' : 'PLAYER'} /></div>)}</div>
+          {watching.status === 'playing' ? <div className="panel turn-panel"><div className="turn-label"><span className="eyebrow accent">TIME LEFT</span></div><div className={`timer${watchedRemaining <= 3000 ? ' timer-low' : ''}`}><strong>{String(Math.ceil(watchedRemaining / 1000)).padStart(2, '0')}</strong><span>SEC</span></div><div className="timer-track"><span style={{ width: `${Math.min(100, watchedRemaining / 100)}%` }} /></div></div>
+            : <div className="panel turn-panel"><div className="turn-label"><span className="eyebrow accent">{watching.status === 'finished' ? 'MATCH OVER' : watching.status === 'paused' ? 'PAUSED' : 'READY CHECK'}</span></div><p>{watching.status === 'finished' && watching.winner ? `${watching.winner} won. Waiting for a rematch.` : watching.status === 'paused' ? 'Both players agreed to pause.' : 'Waiting for both players to press Ready.'}</p></div>}
+          <ChatPanel messages={social.messages} spoken={social.spoken} me={me} chatEnabled={social.features.chat} canSpeak={false}
+            open={social.chatOpen} unread={social.unread} onOpen={social.setChatOpen} onSend={social.sendChat} inputRef={chatInput}
+            controls={<><div className="panel-heading"><span className="eyebrow accent">SPECTATING</span><span>READ ONLY</span></div>
+              <p className="spectator-note">You can't move pieces. Send crowd emotes with the buttons under the board. You keep your place in the queue and join a match as soon as an opponent arrives.</p>
+              <button className="small-button" onClick={social.leave}>LEAVE ✕</button>
+              <KeyList emoteCount={myEmotes.length} chat={social.features.chat} /></>} />
+        </aside>
+      </div> : !shownState || !shownInfo ? <div className="lobby-stack"><section className="lobby-panel panel">
         <div className="lobby-title"><h2>{welcome || 'Welcome.'}</h2><p>Waiting for another player.</p></div>
         <div className="lobby-list"><div className="list-heading"><span>YOUR MATCH</span><strong>1/2</strong></div><div className="lobby-player"><span className="slot">01</span><img src="/assets/prisoner.svg" alt="" /><strong>{pendingName.current || nickname.trim()} (you)</strong></div><div className="empty-slot"><span className="slot">02</span><span className="loading-block" />Waiting for another player...</div></div>
-      </section> : <div className="game-layout">
-        <section className="game-panel panel"><div className="game-topline"><span className="eyebrow accent">CLASSIC · {shownState.board.width} × {shownState.board.height}</span><span className="match-badge">{shownState.status === 'finished' ? 'FINISHED' : waitingReady ? 'GET READY' : paused ? 'PAUSED' : myTurn ? 'YOUR TURN' : `${shownState.turnNickname}'S TURN`}</span></div><div className="board-area"><Board state={shownState} info={shownInfo} legal={legal} /></div><div className="board-footer"><span><i className="legend-dot wall" /> WALL</span><span><i className="legend-dot tunnel" /> TUNNEL</span><span><i className="legend-dot target" /> MOVE</span></div></section>
+      </section>
+      {social.features.spectate && <SpectateList games={social.liveGames} onWatch={social.watch} />}
+      </div> : <div className="game-layout">
+        <section className="game-panel panel"><div className="game-topline"><span className="eyebrow accent">CLASSIC · {shownState.board.width} × {shownState.board.height}</span><span className="match-badge">{shownState.status === 'finished' ? 'FINISHED' : waitingReady ? 'GET READY' : paused ? 'PAUSED' : myTurn ? 'YOUR TURN' : `${shownState.turnNickname}'S TURN`}</span></div><div className="board-area"><BoardStage state={shownState} bubbles={social.bubbles} board={<Board state={shownState} info={shownInfo} legal={legal} />} /></div><div className="board-footer"><span><i className="legend-dot wall" /> WALL</span><span><i className="legend-dot tunnel" /> TUNNEL</span><span><i className="legend-dot target" /> MOVE</span></div>
+          {myEmotes.length > 0 && <EmoteStrip emotes={myEmotes} readyAt={social.emoteReadyAt} onSend={social.sendEmote} />}</section>
         <aside className="sidebar"><div className="panel match-panel"><div className="panel-heading"><span className="eyebrow accent">PLAYERS</span></div><PlayerCard name={shownInfo.you.nickname} role={shownInfo.you.role} score={shownState.scores[shownInfo.you.nickname] ?? 0} active={myTurn} self /><div className="versus">VS</div><PlayerCard name={shownInfo.opponent.nickname} role={shownInfo.opponent.role} score={shownState.scores[shownInfo.opponent.nickname] ?? 0} active={!myTurn && shownState.status === 'active'} self={false} /></div>
           {shownState.status === 'active' ? <div className="panel turn-panel" title="At zero, the server makes a random legal move."><div className="turn-label"><span className="eyebrow accent">TIME LEFT</span></div><div className={`timer${seconds <= 3 ? ' timer-low' : ''}`}><strong>{String(seconds).padStart(2, '0')}</strong><span>SEC</span></div><div className="timer-track"><span style={{ width: `${Math.min(100, remaining / 100)}%` }} /></div></div>
             : <div className="panel result-panel"><h2>{shownResult?.result === 'Win' ? 'You win' : shownResult?.result === 'Lost' ? 'You lose' : 'Match over'}</h2><p>{shownResult ? shownResult.reason === 'escape' ? `${shownResult.winner} escaped.` : `${shownResult.winner} caught the prisoner.` : 'Loading result…'}</p><button className="primary-button" disabled={!shownResult || !!shownVotes[shownInfo.you.nickname] } onClick={() => socket.current?.emit('game:rematchVote', true)}>{shownVotes[shownInfo.you.nickname] ? 'WAITING FOR PLAYER' : 'REMATCH'} <span>↗</span></button></div>}
-          <div className="panel controls-panel"><div className="panel-heading"><span className="eyebrow accent">MOVE</span><span>WASD / ARROWS</span></div><div className="control-grid">{(['up', 'left', 'down', 'right'] as Direction[]).map((direction) => <button key={direction} className={`direction direction-${direction}`} aria-label={`Move ${direction}`} disabled={!legal.includes(direction) || remaining <= 0} onClick={() => move(direction)}><strong>{directions[direction].label}</strong><small>{directions[direction].key}</small></button>)}</div></div>
+          {social.features.chat || social.features.emotes
+            ? <ChatPanel messages={social.messages} spoken={social.spoken} me={me} chatEnabled={social.features.chat} canSpeak={social.features.voice}
+                open={social.chatOpen} unread={social.unread} onOpen={social.setChatOpen} onSend={social.sendChat} inputRef={chatInput}
+                controls={<>{moveControls}<KeyList emoteCount={myEmotes.length} chat={social.features.chat} /></>} />
+            : <div className="panel controls-panel">{moveControls}</div>}
         </aside>
       </div>}
     </main>

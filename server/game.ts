@@ -20,10 +20,13 @@ import {
 import { Direction, PauseAnswer, RematchVote } from './schema.js';
 import { players } from './state.js';
 import { toGameState, toMatchInfo, toMatchResult, toRematchVotes, type Names } from './view.js';
+import { DEFAULT_MODE, type ModeName } from './modes.js';
+import { endSpectating, sendSpectatorState, spectatorsOf, startGameSocial, wasKicked } from './social.js';
 
 // One running game between two players
-interface Game {
+export interface Game {
   id: string;
+  mode: ModeName; // which features this game has (chat, emotes, spectating, voice)
   session: Session; // replaced after every successful core call
   names: Names; // socket id -> nickname, captured when the game starts
   timer: NodeJS.Timeout | null; // turn timer
@@ -40,6 +43,17 @@ const gameOf = new Map<PlayerId, Game>(); // socket id -> game
 let nextGameId = 1;
 
 const channel = (g: Game): string => `game:${g.id}`;
+
+// ---- Lookups for chat, emotes and spectating (social.ts) ------------------------
+
+export const gameChannel = channel;
+export const findGame = (id: string): Game | undefined => games.get(id);
+export const gameOfPlayer = (socketId: PlayerId): Game | undefined => gameOf.get(socketId);
+export function roleOf(g: Game, socketId: PlayerId): 'warden' | 'prisoner' | null {
+  const m = g.session.match;
+  if (!m || !g.session.players.includes(socketId)) return null;
+  return m.roles.warden === socketId ? 'warden' : 'prisoner';
+}
 const rng = Math.random;
 
 // Core error code -> message for the player
@@ -68,6 +82,7 @@ const REASONS: Record<ErrorCode, string> = {
 export function broadcastState(io: GameServer, g: Game): void {
   const state = toGameState(g.session, g.names, Date.now());
   if (state) io.to(channel(g)).emit('game:state', state);
+  sendSpectatorState(io, g); // spectators see the board too
   sendDashboard(io); // keep the admin page's Games list live
 }
 
@@ -75,24 +90,28 @@ export function broadcastState(io: GameServer, g: Game): void {
 
 // Every running game with its two players, for the admin page
 export function getGames(): GameSummary[] {
-  return [...games.values()].map((g) => {
-    const m = g.session.match;
-    const status: GameSummary['status'] =
-      g.ready !== null ? 'ready' : g.paused !== null ? 'paused' : m?.status === 'finished' ? 'finished' : 'playing';
-    return {
-      id: g.id,
-      players: g.session.players.map((id) => ({
-        nickname: g.names[id] ?? id,
-        role: m ? (m.roles.warden === id ? 'warden' : 'prisoner') : null,
-        score: g.session.scores[id] ?? 0,
-      })),
-      status,
-      turn: status === 'playing' && m?.status === 'active' ? g.names[m.turn.playerId] ?? null : null,
-      ready: g.ready ? [...g.ready].map((id) => g.names[id] ?? id) : [],
-      winner: m?.status === 'finished' ? g.names[m.outcome.winner] ?? null : null,
-      state: toGameState(g.session, g.names, Date.now()),
-    };
-  });
+  return [...games.values()].map(summarize);
+}
+
+// One game as the admin page and spectators see it
+export function summarize(g: Game): GameSummary {
+  const m = g.session.match;
+  const status: GameSummary['status'] =
+    g.ready !== null ? 'ready' : g.paused !== null ? 'paused' : m?.status === 'finished' ? 'finished' : 'playing';
+  return {
+    id: g.id,
+    players: g.session.players.map((id) => ({
+      nickname: g.names[id] ?? id,
+      role: m ? (m.roles.warden === id ? 'warden' : 'prisoner') : null,
+      score: g.session.scores[id] ?? 0,
+    })),
+    status,
+    turn: status === 'playing' && m?.status === 'active' ? g.names[m.turn.playerId] ?? null : null,
+    ready: g.ready ? [...g.ready].map((id) => g.names[id] ?? id) : [],
+    winner: m?.status === 'finished' ? g.names[m.outcome.winner] ?? null : null,
+    state: toGameState(g.session, g.names, Date.now()),
+    spectators: spectatorsOf(g.id),
+  };
 }
 
 // Joined players who are not in a game yet (waiting for an opponent)
@@ -197,6 +216,7 @@ function beginMatch(io: GameServer, g: Game, needReady = false): void {
 function destroyGame(io: GameServer, g: Game): void {
   cancelTimer(g);
   games.delete(g.id);
+  endSpectating(io, g.id, 'The game you were watching has ended.');
   for (const id of g.session.players) gameOf.delete(id);
   io.in(channel(g)).socketsLeave(channel(g));
   sendDashboard(io);
@@ -220,6 +240,7 @@ export function matchmake(io: GameServer): void {
 
     const g: Game = {
       id: String(nextGameId++),
+      mode: DEFAULT_MODE,
       session: started.value,
       names: { [a[0]]: a[1], [b[0]]: b[1] },
       timer: null,
@@ -232,6 +253,7 @@ export function matchmake(io: GameServer): void {
       gameOf.set(id, g);
       io.sockets.sockets.get(id)?.join(channel(g));
     }
+    startGameSocial(io, g); // stops spectating, sends chat/emote features
     beginMatch(io, g, true); // new pair: wait for both to press Ready
   }
 }
@@ -414,8 +436,9 @@ export function registerGame(io: GameServer, socket: GameSocket): void {
 
     destroyGame(io, g); // also cancels the timer
     const leaver = g.names[socket.id] ?? 'Your opponent';
+    const message = wasKicked(socket.id) ? `${leaver} was kicked by the admin.` : `${leaver} left the game.`;
     for (const id of g.session.players) {
-      if (id !== socket.id) io.to(id).emit('game:opponentLeft', `${leaver} left the game.`);
+      if (id !== socket.id) io.to(id).emit('game:opponentLeft', message);
     }
     matchmake(io); // the remaining player may be paired with someone waiting
   });

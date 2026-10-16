@@ -3,6 +3,7 @@
 import type { GameServer } from './events.js';
 import { getDashboardState, printDashboard} from './dashboard.js';
 import { resetGame } from './game.js';
+import { registerAdminSocial } from './social.js';
 
 // Read the password from an environment variable; fall back to a default for local testing
 const ADMIN_PASSWORD = process.env.ADMIN_PASSWORD ?? 'admin123';
@@ -30,6 +31,9 @@ export function registerAdmin(io: GameServer): void {
     socket.on('disconnect', () => {
       console.log(`\n[Admin] Admin disconnected (${socket.id})`);
     });
+
+    // Mute a player / turn chat off (social.ts)
+    registerAdminSocial(io, socket, (event) => printDashboard(io, event));
 
     // Reset button: game.ts cancels the turn timers, sets scores to 0,
     // sends server:reset to the players and starts a fresh match

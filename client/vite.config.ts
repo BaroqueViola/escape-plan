@@ -6,6 +6,7 @@ export default defineConfig({
   server: {
     proxy: {
       '/socket.io': 'http://localhost:3000',
+      '/voice': 'http://localhost:3000', // voice clips made by the server
     },
   },
 });
