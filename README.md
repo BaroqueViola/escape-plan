@@ -6,6 +6,9 @@ scores, and rematches; the browser renders server state.
 
 ## Development
 
+New here? [docs/TWO_COMPUTER_SETUP.md](docs/TWO_COMPUTER_SETUP.md) walks through running
+the game, getting an ElevenLabs API key for the voices, and playing on several computers.
+
 Use Node.js 22.12+, 24.x, or 26+ and npm, matching Vitest's supported runtimes.
 
 ```sh
