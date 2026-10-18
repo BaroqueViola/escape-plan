@@ -136,7 +136,81 @@
     .watch-timer strong { font-family: var(--display); font-size: 60px; line-height: 1; }
     .watch-timer span { font-size: 11px; color: var(--muted); }
     .watch-note { margin-top: 10px; color: var(--muted); font-size: 11px; }
-    @media (max-width: 760px) { .watch { grid-template-columns: 1fr; } }
+    @media (max-width: 760px) { .watch { grid-template-columns: 1fr; } .watch > * { grid-column: auto !important; } }
+
+    /* Chat, emotes, spectators, voice */
+    .social { grid-column: 1 / -1; display: grid; grid-template-columns: minmax(260px, .8fr) minmax(0, 1.2fr); gap: 25px; }
+    .voice-stats { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; margin: 14px 0; }
+    .voice-stats div { background: var(--panel-dark); border: 1px solid #53604c; padding: 12px; }
+    .voice-stats strong { display: block; font-family: var(--display); font-size: 40px; line-height: 1; color: #f3d77e; margin-top: 6px; }
+    .voice-stats small { color: var(--dim); font-size: 10px; }
+    .voice-state { font-size: 11px; color: var(--muted); line-height: 1.6; margin: 0 0 14px; }
+    .voice-state b { color: var(--ok); font-weight: 500; }
+    .voice-state b.off { color: #e7b36d; }
+    .feed { list-style: none; margin: 14px 0 0; padding: 0; max-height: 300px; overflow: auto; background: var(--panel-dark); border: 1px solid #53604c; }
+    .feed li { display: flex; gap: 12px; padding: 9px 12px; border-top: 1px solid var(--line-soft); font-size: 11px; color: var(--muted); }
+    .feed li:first-child { border-top: 0; }
+    .feed time { color: var(--dim); flex: none; }
+    .feed .room { color: var(--gold); flex: none; }
+    .feed .text { color: var(--text); overflow-wrap: anywhere; }
+    .mute-button { margin-left: auto; background: var(--panel); border: 1px solid #77826b; color: var(--text); font-size: 9px; letter-spacing: .1em; padding: 5px 8px; }
+    .mute-button.on { background: var(--danger); border-color: var(--danger); color: #182019; }
+    .muted-tag { color: #e7b36d; font-size: 9px; letter-spacing: .1em; }
+    .kick-button { background: transparent; border: 1px solid var(--danger); color: var(--danger); font-size: 9px; letter-spacing: .1em; padding: 5px 8px; }
+    .kick-button:hover { background: var(--danger); color: #182019; }
+    .mute-button + .kick-button { margin-left: 6px; }
+
+    /* Watch: emotes over the board, spectators, the game's chat */
+    .watch { grid-template-columns: minmax(0, 420px) minmax(0, 1fr); row-gap: 22px; }
+    .watch-stage { position: relative; }
+    .watch-bubbles { position: absolute; inset: 8px; pointer-events: none; z-index: 5; }
+    .w-bub { position: absolute; background: #fff; border: 4px solid #15140f; border-radius: 16px; padding: 5px 6px 3px; box-shadow: 0 5px 0 #15140f, inset 0 -6px 0 #e3e0d4; transform: translateY(-100%) rotate(-4deg); }
+    .w-bub.flip { transform: translate(-70%, -100%) rotate(4deg); }
+    .w-bub img { width: 58px; height: 58px; display: block; image-rendering: pixelated; }
+    .w-crowd { position: absolute; left: 4px; bottom: 4px; display: flex; flex-direction: column; gap: 5px; }
+    .w-cb { display: flex; align-items: center; gap: 5px; background: #fff; border: 3px solid #15140f; border-radius: 11px; padding: 2px 7px 2px 3px; box-shadow: 0 3px 0 #15140f; font-size: 9px; color: #333; }
+    .w-cb img { width: 26px; height: 26px; image-rendering: pixelated; }
+    .watch-info .eye-count { display: inline-flex; gap: 6px; border: 1px solid var(--gold); background: #3e4431; color: #ead381; padding: 6px 10px; font-size: 10px; letter-spacing: .12em; margin-left: 12px; vertical-align: middle; font-family: var(--mono, inherit); }
+    .watch-info .slot .kick-button { margin-left: 12px; }
+    .w-head { display: flex; justify-content: space-between; font-size: 10px; letter-spacing: .14em; color: var(--gold); margin-bottom: 10px; }
+    .w-head span + span { color: var(--dim); }
+    .w-spec { display: flex; align-items: center; justify-content: space-between; background: #1f2a22; border: 1px dashed #4d604c; padding: 8px 10px; font-size: 12px; margin-bottom: 6px; }
+    .w-none { color: var(--dim); font-size: 11px; }
+    .w-chat { display: flex; flex-direction: column; gap: 9px; background: var(--panel-dark); border: 1px solid #4d604c; padding: 12px; height: 260px; overflow-y: auto; }
+    .w-cm { max-width: 92%; }
+    .w-cm .n { font-size: 8px; color: #8fa196; letter-spacing: .12em; margin-bottom: 3px; }
+    .w-cm .t { background: #2e3c2e; border: 1px solid #4d604c; padding: 7px 9px; font-size: 11px; width: fit-content; max-width: 100%; display: flex; gap: 8px; align-items: center; overflow-wrap: anywhere; }
+    .w-cm.spec .t { border-style: dashed; background: #1f2a24; }
+    .w-cm.admin { align-self: flex-end; text-align: right; }
+    .w-cm.admin .n { color: #ef9771; }
+    .w-cm.admin .t { background: #3a2620; border-color: #ef9771; margin-left: auto; }
+    .w-cm.sys { align-self: center; color: #7f998e; font-size: 9px; letter-spacing: .08em; }
+    .w-cm.emo { display: flex; align-items: center; gap: 8px; color: var(--muted); font-size: 10px; }
+    .w-cm.emo img { width: 22px; height: 22px; image-rendering: pixelated; }
+    .w-spk { font-size: 8px; color: #ead381; border: 1px solid #a9a068; padding: 1px 5px; white-space: nowrap; }
+    .w-form { display: flex; gap: 6px; margin-top: 8px; }
+    .w-form input { flex: 1; min-width: 0; height: 40px; background: #151e19; border: 1px solid #77826b; color: #fff; padding: 0 12px; font: inherit; font-size: 11px; outline: none; }
+    .w-form input:focus { border-color: var(--gold); }
+    .w-form button { background: var(--gold); color: #182019; border: 0; padding: 0 14px; font-size: 10px; letter-spacing: .09em; box-shadow: 3px 3px 0 #9b8145; }
+    .w-form button:disabled { opacity: .55; }
+
+    /* Kick: ask for the reason */
+    .kick-modal { position: fixed; inset: 0; background: rgba(8, 12, 10, .72); display: grid; place-items: center; z-index: 50; padding: 16px; }
+    .kick-modal[hidden] { display: none; }
+    .kick-box { width: min(480px, 100%); background: var(--panel); border: 1px solid var(--danger); box-shadow: 8px 8px 0 #0b100d; padding: 26px; }
+    .kick-box h3 { font-family: var(--display); font-size: 38px; margin: 6px 0 4px; }
+    .kick-box p { color: var(--muted); font-size: 11px; line-height: 1.6; margin: 0 0 16px; }
+    .kick-box .eyebrow { color: var(--danger); }
+    .kick-box textarea { display: block; width: 100%; box-sizing: border-box; height: 86px; margin-top: 8px; background: #151e19; border: 1px solid #77826b; color: #fff; padding: 10px 12px; font: inherit; font-size: 12px; resize: none; outline: none; }
+    .kick-box textarea:focus { border-color: var(--gold); }
+    .kick-row { display: flex; justify-content: space-between; gap: 12px; font-size: 9px; color: var(--dim); margin-top: 6px; }
+    .kick-row .error { color: var(--danger); }
+    .kick-buttons { display: flex; gap: 10px; margin-top: 18px; }
+    .kick-buttons button { flex: 1; }
+    .kick-buttons .primary-button:disabled { opacity: .5; cursor: not-allowed; }
+    .game-foot.spectators { color: var(--muted); }
+    .eye { color: var(--gold); font-size: 10px; letter-spacing: .1em; margin-right: 8px; }
+    @media (max-width: 900px) { .social { grid-template-columns: 1fr; } }
 
     @media (max-width: 900px) {
       .grid { grid-template-columns: 1fr 1fr; }
@@ -177,6 +251,18 @@
     </section>
 
     <!-- Dashboard (after a correct password) -->
+    <div id="kick-modal" class="kick-modal" hidden role="dialog" aria-modal="true" aria-labelledby="kick-title">
+      <form id="kick-form" class="kick-box">
+        <span class="eyebrow">KICK PLAYER</span>
+        <h3 id="kick-title">Kick?</h3>
+        <p id="kick-text"></p>
+        <label for="kick-reason">REASON (REQUIRED)</label>
+        <textarea id="kick-reason" maxlength="120" placeholder="Why are they being kicked?"></textarea>
+        <div class="kick-row"><span id="kick-hint">The KICK button stays off until you write a reason.</span><span id="kick-count">0 / 120</span></div>
+        <div class="kick-buttons"><button id="kick-cancel" class="ghost-button" type="button">CANCEL</button><button id="kick-go" class="primary-button danger-button" type="submit" disabled>KICK ⏏</button></div>
+      </form>
+    </div>
+
     <section id="dashboard" hidden>
       <div class="page-title">
         <div><span class="eyebrow accent">CLASSIC · SERVER</span><h1>Dashboard</h1><p>Updates live as players connect, join and leave.</p></div>
@@ -224,6 +310,22 @@
           <div id="games" class="game-list"></div>
           <p id="waiting" class="waiting" hidden></p>
         </div>
+
+        <div class="panel social">
+          <div>
+            <div class="panel-heading"><span class="eyebrow accent">VOICE &amp; CHAT</span><span>ELEVENLABS</span></div>
+            <div class="voice-stats">
+              <div><small>CREDITS TODAY</small><strong id="credits-today">0</strong><small id="credits-today-limit">of 0</small></div>
+              <div><small>CREDITS THIS MONTH</small><strong id="credits-month">0</strong><small id="credits-month-limit">of 0</small></div>
+            </div>
+            <p id="voice-state" class="voice-state"></p>
+            <button id="chat-toggle" class="primary-button danger-button" type="button">TURN CHAT OFF <span>⊘</span></button>
+          </div>
+          <div>
+            <div class="panel-heading"><span class="eyebrow accent">LIVE FEED</span><span>CHAT · EMOTES · SPECTATORS</span></div>
+            <ol id="feed" class="feed"><li>No chat yet.</li></ol>
+          </div>
+        </div>
       </div>
     </section>
   </main>
@@ -249,6 +351,7 @@
     const time = () => new Date().toLocaleTimeString();
 
     // Players list: one row per nickname (textContent, never innerHTML, so names can't inject HTML)
+    let mutedNames = [], chatOn = true;
     function renderPlayers(names) {
       const list = $('players');
       list.replaceChildren();
@@ -259,6 +362,13 @@
         const img = document.createElement('img'); img.src = '/assets/prisoner.svg'; img.alt = '';
         const label = document.createElement('strong'); label.textContent = name;
         row.append(num, img, label);
+        // Mute: the player can't chat or send emotes until unmuted
+        const isMuted = mutedNames.includes(name);
+        if (isMuted) row.appendChild(el('span', 'muted-tag', 'MUTED'));
+        const mute = el('button', `mute-button${isMuted ? ' on' : ''}`, isMuted ? 'UNMUTE' : 'MUTE');
+        mute.type = 'button';
+        mute.addEventListener('click', () => socket && socket.emit('admin:mute', name, !isMuted));
+        row.append(mute, kickButton(name, 'the server'));
         list.appendChild(row);
       });
       if (names.length === 0) {
@@ -278,16 +388,65 @@
       if (text !== undefined) node.textContent = text;
       return node;
     };
-    // Watch: the admin picks one game and sees its board live
+    // Watch: the admin picks one game and sees everything its players and
+    // spectators see: the board with emote bubbles, who is watching, and the chat.
     let watchingId = null, lastGames = [], lastWaiting = [], stateAt = 0;
+    let watchChat = [], watchSpoken = new Set(), watchBubbles = [], nextBubble = 1;
+    let watchParts = null; // the parts of the Watch box that stay put (the chat box keeps what you typed)
+    const emoteImg = (emote) => { const img = el('img'); img.src = `/emotes/${emote}.svg`; img.alt = emote; return img; };
+
+    function watchGame(id) {
+      watchingId = id;
+      watchChat = []; watchSpoken = new Set(); watchBubbles = []; watchParts = null;
+      if (socket) socket.emit('admin:watch', id);
+      renderGames(lastGames, lastWaiting);
+    }
+
+    function buildWatch(box) {
+      box.replaceChildren();
+      const stage = el('div', 'watch-stage');
+      const board = el('div', 'watch-board');
+      const bubbles = el('div', 'watch-bubbles');
+      stage.append(board, bubbles);
+      const info = el('div', 'watch-info');
+      const specs = el('div');
+      const chatCol = el('div');
+      const head = el('div', 'w-head');
+      head.append(el('span', '', `GAME ${watchingId} CHAT & EMOTES`), el('span', '', 'LIVE'));
+      const log = el('div', 'w-chat');
+      log.setAttribute('aria-live', 'polite');
+      const form = el('form', 'w-form');
+      const input = el('input');
+      input.maxLength = 80; input.placeholder = 'Type as ADMIN…'; input.setAttribute('aria-label', 'Message as admin');
+      const send = el('button', '', 'SEND'); send.type = 'submit'; send.disabled = true;
+      input.addEventListener('input', () => { send.disabled = !input.value.trim(); });
+      form.addEventListener('submit', (event) => {
+        event.preventDefault();
+        const text = input.value.trim();
+        if (!text || !socket) return;
+        socket.emit('admin:say', watchingId, text);
+        input.value = ''; send.disabled = true;
+      });
+      form.append(input, send);
+      chatCol.append(head, log, form);
+      box.append(stage, info, specs, chatCol);
+      watchParts = { id: watchingId, board, bubbles, info, specs, log };
+    }
+
     function renderWatch() {
       const box = $('watch');
       const game = lastGames.find((g) => g.id === watchingId);
-      if (!game || !game.state) { box.hidden = true; box.replaceChildren(); if (!game) watchingId = null; return; }
-      const st = game.state;
+      if (!game || !game.state) {
+        box.hidden = true; box.replaceChildren(); watchParts = null;
+        if (!game && watchingId !== null) { watchingId = null; if (socket) socket.emit('admin:watch', null); }
+        return;
+      }
       box.hidden = false;
-      box.replaceChildren();
-      const board = el('div', 'watch-board');
+      if (!watchParts || watchParts.id !== game.id) { buildWatch(box); renderWatchChat(); }
+      const st = game.state;
+      const { board, info, specs } = watchParts;
+
+      board.replaceChildren();
       board.style.gridTemplateColumns = `repeat(${st.board.width}, 1fr)`;
       st.board.cells.forEach((tile, i) => {
         const x = i % st.board.width, y = Math.floor(i / st.board.width);
@@ -300,19 +459,24 @@
         });
         board.appendChild(cell);
       });
-      const info = el('div', 'watch-info');
+      renderBubbles();
+
+      info.replaceChildren();
       const close = el('button', 'ghost-button', 'CLOSE ✕');
-      close.addEventListener('click', () => { watchingId = null; renderGames(lastGames, lastWaiting); });
+      close.type = 'button';
+      close.addEventListener('click', () => watchGame(null));
       const top = el('div', 'panel-heading');
       top.append(el('span', 'eyebrow accent', `WATCHING · ROOM game:${game.id}`), close);
-      info.append(top, el('h2', '', `GAME ${game.id}`), el('p', 'sub', STATUS[game.status] || game.status));
+      const title = el('h2', '', `GAME ${game.id}`);
+      title.appendChild(el('span', 'eye-count', `👁 ${(game.spectators || []).length} WATCHING`));
+      info.append(top, title, el('p', 'sub', STATUS[game.status] || game.status));
       game.players.forEach((p) => {
         const row = el('div', `slot${game.turn === p.nickname ? ' active' : ''}`);
         const img = el('img'); img.src = `/assets/${p.role === 'warden' ? 'warden' : 'prisoner'}.svg`; img.alt = '';
         const name = el('strong', '', p.nickname); name.style.flex = '1';
         row.append(img, name);
         if (game.turn === p.nickname) row.appendChild(el('span', 'turn', '▶ TURN'));
-        row.append(el('span', 'role', (p.role || '').toUpperCase()), el('span', 'score', String(p.score)));
+        row.append(el('span', 'role', (p.role || '').toUpperCase()), el('span', 'score', String(p.score)), kickButton(p.nickname, `Game ${game.id}`));
         info.appendChild(row);
       });
       if (game.status === 'playing') {
@@ -326,9 +490,117 @@
         : game.status === 'paused' ? 'Both players agreed to pause. The clock is stopped.'
         : game.status === 'ready' ? 'Waiting for both players to press Ready.' : 'Updates live after every move.';
       info.appendChild(el('p', 'watch-note', note));
-      box.append(board, info);
+
+      specs.replaceChildren();
+      const names = game.spectators || [];
+      const specHead = el('div', 'w-head');
+      specHead.append(el('span', '', 'SPECTATORS'), el('span', '', String(names.length)));
+      specs.appendChild(specHead);
+      names.forEach((n) => {
+        const row = el('div', 'w-spec');
+        row.append(el('span', '', n), kickButton(n, `watching Game ${game.id}`));
+        specs.appendChild(row);
+      });
+      if (names.length === 0) specs.appendChild(el('p', 'w-none', 'Nobody is watching this game.'));
       tickWatch();
     }
+
+    // Emotes: a player's pops up over their character, spectators' stack in the corner
+    function renderBubbles() {
+      if (!watchParts) return;
+      const game = lastGames.find((g) => g.id === watchingId);
+      const layer = watchParts.bubbles;
+      layer.replaceChildren();
+      if (!game || !game.state) return;
+      const { width, height } = game.state.board;
+      watchBubbles.filter((b) => b.kind === 'player' && b.role).forEach((b) => {
+        const pos = game.state.positions[b.role];
+        const right = pos.x >= width - 1;
+        const bub = el('div', `w-bub${right ? ' flip' : ''}`);
+        bub.title = `${b.from}: ${b.emote}`;
+        bub.style.left = `${((pos.x + (right ? 0.1 : 0.55)) / width) * 100}%`;
+        bub.style.top = `${(Math.max(0, pos.y - 0.15) / height) * 100}%`;
+        bub.appendChild(emoteImg(b.emote));
+        layer.appendChild(bub);
+      });
+      const crowd = el('div', 'w-crowd');
+      watchBubbles.filter((b) => b.kind === 'spectator').slice(-4).forEach((b) => {
+        const cb = el('div', 'w-cb');
+        cb.append(emoteImg(b.emote), document.createTextNode(b.from));
+        crowd.appendChild(cb);
+      });
+      layer.appendChild(crowd);
+    }
+
+    // The game's chat, with emotes in between, as the admin sees it
+    function renderWatchChat() {
+      if (!watchParts) return;
+      const log = watchParts.log;
+      log.replaceChildren();
+      watchChat.forEach((m) => {
+        if (m.kind === 'emote') {
+          const row = el('div', 'w-cm emo');
+          row.append(emoteImg(m.emote), document.createTextNode(`${m.from}${m.spectator ? ' (watching)' : ''} sent ${m.emote}`));
+          log.appendChild(row);
+          return;
+        }
+        if (m.kind === 'system') { log.appendChild(el('div', 'w-cm sys', m.text.toUpperCase())); return; }
+        const row = el('div', `w-cm${m.kind === 'spectator' ? ' spec' : ''}${m.kind === 'admin' ? ' admin' : ''}`);
+        const who = m.kind === 'admin' ? 'ADMIN (YOU)' : `${m.from.toUpperCase()} · ${m.kind === 'spectator' ? 'WATCHING' : (m.role || '').toUpperCase()}`;
+        const text = el('div', 't');
+        text.appendChild(el('span', '', m.text));
+        if (watchSpoken.has(m.id)) text.appendChild(el('span', 'w-spk', '🔊 SPOKEN'));
+        row.append(el('div', 'n', who), text);
+        log.appendChild(row);
+      });
+      if (watchChat.length === 0) log.appendChild(el('div', 'w-cm sys', 'NO CHAT YET'));
+      log.scrollTop = log.scrollHeight;
+    }
+
+    // Kick: ask for a reason first; the player sees it and goes back to the name screen
+    let kickName = null;
+    function kickButton(nickname, where) {
+      const button = el('button', 'kick-button', 'KICK');
+      button.type = 'button';
+      button.addEventListener('click', () => openKick(nickname, where));
+      return button;
+    }
+    function openKick(nickname, where) {
+      kickName = nickname;
+      $('kick-title').textContent = `Kick ${nickname}?`;
+      $('kick-text').textContent = where.startsWith('Game')
+        ? `${nickname} leaves ${where} and goes back to the name screen. They will see your reason. Their opponent goes back to waiting for a new match.`
+        : `${nickname} goes back to the name screen and will see your reason.`;
+      $('kick-reason').value = '';
+      $('kick-go').textContent = `KICK ${nickname.toUpperCase()} ⏏`;
+      updateKick();
+      $('kick-hint').className = '';
+      $('kick-hint').textContent = 'The KICK button stays off until you write a reason.';
+      $('kick-modal').hidden = false;
+      $('kick-reason').focus();
+    }
+    function closeKick() { $('kick-modal').hidden = true; kickName = null; }
+    function updateKick() {
+      const reason = $('kick-reason').value;
+      $('kick-count').textContent = `${reason.length} / 120`;
+      $('kick-go').disabled = !reason.trim();
+    }
+    $('kick-reason').addEventListener('input', updateKick);
+    $('kick-cancel').addEventListener('click', closeKick);
+    $('kick-modal').addEventListener('keydown', (event) => { if (event.key === 'Escape') closeKick(); });
+    $('kick-form').addEventListener('submit', (event) => {
+      event.preventDefault();
+      const reason = $('kick-reason').value.trim();
+      if (!socket || !kickName || !reason) return;
+      $('kick-go').disabled = true;
+      socket.emit('admin:kick', kickName, reason, (error) => {
+        if (!error) { closeKick(); return; }
+        $('kick-hint').className = 'error';
+        $('kick-hint').textContent = error;
+        updateKick();
+      });
+    });
+
     function tickWatch() {
       const timer = document.querySelector('#watch-timer strong');
       const game = lastGames.find((g) => g.id === watchingId);
@@ -350,7 +622,7 @@
         const right = el('div');
         const watch = el('button', `watch-button${game.id === watchingId ? ' active' : ''}`, game.id === watchingId ? 'WATCHING' : 'WATCH ▸');
         watch.type = 'button';
-        watch.addEventListener('click', () => { watchingId = game.id; renderGames(lastGames, lastWaiting); });
+        watch.addEventListener('click', () => watchGame(game.id === watchingId ? null : game.id));
         right.append(el('span', `badge ${game.status}`, STATUS[game.status] || game.status), watch);
         head.append(title, right);
         card.appendChild(head);
@@ -365,6 +637,10 @@
           card.appendChild(row);
         });
         if (game.status === 'finished' && game.winner) card.appendChild(el('div', 'game-foot', `${game.winner} won · waiting for rematch votes`));
+        const specs = game.spectators || [];
+        const foot = el('div', 'game-foot spectators');
+        foot.append(el('span', 'eye', `👁 ${specs.length}`), document.createTextNode(specs.length ? `Watching: ${specs.join(', ')}` : 'No spectators'));
+        card.appendChild(foot);
         list.appendChild(card);
       });
       if (games.length === 0) list.appendChild(el('div', 'no-games', 'No games yet. A game starts when two players have joined.'));
@@ -373,6 +649,35 @@
       const waitingText = $('waiting');
       waitingText.hidden = waiting.length === 0;
       waitingText.textContent = `Waiting in the lobby for an opponent: ${waiting.join(', ')}`;
+    }
+
+    function renderSocial(state) {
+      const v = state.voice;
+      if (v) {
+        $('credits-today').textContent = v.creditsToday;
+        $('credits-today-limit').textContent = `of ${v.dailyLimit} daily cap`;
+        $('credits-month').textContent = v.creditsMonth;
+        $('credits-month-limit').textContent = `of ${v.monthlyLimit} (free plan: 10,000)`;
+        const box = $('voice-state');
+        box.replaceChildren();
+        const status = el('b', v.available ? '' : 'off', !v.enabled ? 'NO API KEY' : v.available ? 'CONNECTED' : 'PAUSED');
+        const why = !v.enabled ? ' · emotes use plain sound effects, chat is text only'
+          : v.available ? ' · falls back to sound effects if ElevenLabs is down'
+          : ` · ${v.lastError || 'daily or monthly cap reached'}; using sound effects`;
+        box.append(status, document.createTextNode(why));
+      }
+      chatOn = state.chatEnabled !== false;
+      const toggle = $('chat-toggle');
+      toggle.className = chatOn ? 'primary-button danger-button' : 'primary-button';
+      toggle.firstChild.textContent = chatOn ? 'TURN CHAT OFF ' : 'TURN CHAT ON ';
+      const feedList = $('feed');
+      feedList.replaceChildren();
+      (state.feed || []).forEach((f) => {
+        const li = el('li');
+        li.append(el('time', '', new Date(f.at).toLocaleTimeString()), el('span', 'room', `GAME ${f.gameId}`), el('span', 'text', f.text));
+        feedList.appendChild(li);
+      });
+      if (!state.feed || state.feed.length === 0) feedList.appendChild(el('li', '', 'No chat yet.'));
     }
 
     function addLog(message) {
@@ -414,12 +719,30 @@
       socket.on('admin:dashboard', (state, eventLabel) => {
         $('connected').textContent = state.connected;
         $('joined').textContent = state.players.length;
+        mutedNames = state.muted || [];
         renderPlayers(state.players);
+        renderSocial(state);
         stateAt = Date.now(); // the board's time is measured from when it arrived
         renderGames(state.games || [], state.waiting || []);
         if (eventLabel) addLog(eventLabel);
       });
+
+      // The watched game's chat and emotes (the server sends them after admin:watch)
+      socket.on('chat:history', (list) => { watchChat = list.slice(); watchSpoken = new Set(); renderWatchChat(); });
+      socket.on('chat:message', (m) => { watchChat = [...watchChat.slice(-59), m]; renderWatchChat(); });
+      socket.on('chat:spoken', (id) => { watchSpoken.add(id); renderWatchChat(); });
+      socket.on('emote:show', (e) => {
+        const key = nextBubble++;
+        watchBubbles = [...watchBubbles.filter((b) => !(e.kind === 'player' && b.kind === 'player' && b.role === e.role)), { ...e, key }];
+        setTimeout(() => { watchBubbles = watchBubbles.filter((b) => b.key !== key); renderBubbles(); }, 2600);
+        watchChat = [...watchChat.slice(-59), { kind: 'emote', id: `e${key}`, from: e.from, emote: e.emote, spectator: e.kind === 'spectator' }];
+        renderBubbles(); renderWatchChat();
+      });
+      socket.on('connect', () => { if (watchingId !== null) socket.emit('admin:watch', watchingId); }); // after a server restart
     });
+
+    // Chat on/off for everyone
+    $('chat-toggle').addEventListener('click', () => socket && socket.emit('admin:chat', !chatOn));
 
     // Reset: ask for confirmation inside the page, then send admin:reset
     resetButton.addEventListener('click', () => {

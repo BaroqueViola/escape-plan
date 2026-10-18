@@ -3,6 +3,8 @@
 import type { DashboardState, GameServer } from './events.js';
 import { players } from './state.js';
 import { getGames, getWaiting } from './game.js';
+import { broadcastSpectateList, isChatEnabled, mutedPlayers, recentFeed } from './social.js';
+import { voiceStatus } from './voice.js';
 
 // Collect the current numbers (used by the terminal AND the admin page)
 export function getDashboardState(io: GameServer): DashboardState {
@@ -12,12 +14,17 @@ export function getDashboardState(io: GameServer): DashboardState {
     players: [...players.values()],
     games: getGames(),
     waiting: getWaiting(),
+    voice: voiceStatus(),
+    chatEnabled: isChatEnabled(),
+    muted: mutedPlayers(),
+    feed: recentFeed(),
   };
 }
 
 // Refresh the admin page without printing or logging (e.g. after every move)
 export function sendDashboard(io: GameServer): void {
   io.of('/admin').emit('admin:dashboard', getDashboardState(io));
+  broadcastSpectateList(io); // waiting players see live games and spectator counts
 }
 
 export function printDashboard(io: GameServer, event: string): void {
@@ -40,4 +47,5 @@ export function printDashboard(io: GameServer, event: string): void {
 
   // Also push the update (and what happened) live to every logged-in admin page
   io.of('/admin').emit('admin:dashboard', state, event);
+  broadcastSpectateList(io);
 }

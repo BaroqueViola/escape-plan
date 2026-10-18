@@ -1,0 +1,95 @@
+/* Chat, emotes and spectating */
+.eye-pill{display:flex;align-items:center;gap:8px;border:1px solid #d9bc62;background:#3e4431;color:#ead381;padding:10px 13px;font-size:10px;letter-spacing:.13em;white-space:nowrap}
+.eye-pill.small{padding:5px 8px;font-size:10px}
+.sound-button{min-width:96px}
+
+/* Chat / Controls tabs */
+.chat-panel{display:flex;flex-direction:column}
+.cp-tabs{display:flex;align-items:stretch;margin:-19px -19px 16px;border-bottom:1px solid #58624f}
+.cp-tab{flex:1;background:#1a241e;border:0;border-right:1px solid #58624f;color:#8fa196;font-size:10px;letter-spacing:.15em;padding:14px 12px;display:flex;align-items:center;gap:8px;justify-content:center}
+.cp-tab.on{background:#242e27;color:#d9bc62;box-shadow:inset 0 -3px 0 #d9bc62}
+.cp-tab:disabled{opacity:.6}
+.cp-badge{background:#ef9771;color:#1a1a1a;font-size:9px;padding:2px 6px;font-weight:500}
+.cp-off{border:1px solid #8fa196;font-size:8px;padding:1px 4px}
+.cp-x{width:46px;background:#1a241e;border:0;color:#c9d2c0;font-size:18px}
+.chat-body{display:flex;flex-direction:column;flex:1}
+.chat-log{display:flex;flex-direction:column;gap:9px;height:262px;overflow-y:auto;background:#19231d;border:1px solid #4d604c;padding:12px}
+.cm{max-width:92%}
+.cm .n{font-size:8px;color:#8fa196;letter-spacing:.12em;margin-bottom:3px}
+.cm .t{background:#2e3c2e;border:1px solid #4d604c;padding:7px 9px;font-size:11px;display:flex;gap:8px;align-items:center;width:fit-content;max-width:100%;overflow-wrap:anywhere}
+.cm.me{align-self:flex-end;text-align:right}.cm.me .t{background:#3e4431;border-color:#a9a068;margin-left:auto}
+.cm.spec .t{border-style:dashed;background:#1f2a24}
+.cm.admin .n{color:#ef9771}.cm.admin .t{background:#3a2620;border-color:#ef9771}
+.cm.sys{align-self:center;color:#7f998e;font-size:9px;letter-spacing:.08em}
+.spk{font-size:8px;color:#ead381;border:1px solid #a9a068;padding:1px 5px;letter-spacing:.08em;white-space:nowrap}
+.chat-in{display:flex;gap:6px;margin-top:10px}
+.chat-in input{flex:1;min-width:0;height:42px;background:#151e19;border:1px solid #77826b;color:#fff;padding:0 12px;font-size:11px;outline:none}
+.chat-in input::placeholder{color:#748276}
+.speak{display:flex;align-items:center;gap:8px;border:1px solid #77826b;background:#1a241e;color:#8fa196;padding:0 10px;font-size:9px;letter-spacing:.1em;cursor:pointer}
+/* Sliding switch in the game's pixel style: square track, square knob, gold when on */
+.speak .sw{width:38px;height:20px;background:#151e19;border:1px solid #77826b;position:relative;display:inline-block;flex:none;transition:background .15s steps(3),border-color .15s}
+.speak .sw:after{content:"";position:absolute;left:2px;top:2px;width:14px;height:14px;background:#8fa196;box-shadow:2px 2px 0 #0c1210;transition:transform .15s steps(3),background .15s}
+.speak.on{border-color:#a9a068;color:#ead381}.speak.on .sw{background:#d9bc62;border-color:#9b8145}.speak.on .sw:after{transform:translateX(18px);background:#182019;box-shadow:2px 2px 0 #9b8145}
+.send{background:#d9bc62;color:#182019;border:0;padding:0 13px;font-size:10px;letter-spacing:.09em;box-shadow:3px 3px 0 #9b8145}
+.send:disabled{opacity:.55}
+.chat-foot{display:flex;justify-content:space-between;margin-top:9px;font-size:9px;color:#7f998e;letter-spacing:.06em}
+
+/* Kicked by the admin (name screen) */
+.kicked-banner{display:flex;gap:16px;align-items:flex-start;max-width:640px;margin:0 auto 26px;border:1px solid #ef9771;background:#3a2620;box-shadow:6px 6px 0 #0b100d;padding:18px 22px}
+.kicked-banner .kicked-icon{font-size:26px;line-height:1;color:#ef9771}
+.kicked-banner small{display:block;font-size:10px;letter-spacing:.14em;color:#ef9771;margin-bottom:2px}
+.kicked-banner strong{display:block;font-family:'Barlow Condensed',sans-serif;font-size:28px;color:#f5edcf}
+.kicked-banner q{display:block;margin:8px 0 6px;color:#f5edcf;font-size:12px;overflow-wrap:anywhere}
+.kicked-banner span{font-size:10px;color:#c9b3a8}
+.kicked-banner button{margin-left:auto;background:transparent;border:0;color:#c9b3a8;font-size:16px}
+
+/* Controls tab */
+.keys{display:grid;grid-template-columns:1fr auto;gap:8px 12px;margin-top:10px;font-size:10px;color:#adbcae;align-items:center}
+.keys kbd{font:inherit;font-size:9px;border:1px solid #91a079;background:#485d47;color:#f5edcf;padding:3px 7px;box-shadow:2px 2px 0 #162018;margin-left:4px}
+.ctl-sec{border-top:1px solid #435341;margin-top:14px;padding-top:14px}
+
+/* Emote buttons */
+.emote-strip{display:flex;align-items:center;gap:10px;justify-content:center;margin-top:14px;flex-wrap:wrap}
+.emote-strip .lbl{font-size:9px;color:#d9bc62;letter-spacing:.15em;margin-right:6px}
+.eb{width:54px;height:54px;background:#f4f1e6;border:3px solid #15140f;border-radius:10px;box-shadow:inset 0 -5px 0 #d8d4c3,3px 3px 0 #0c1210;padding:4px;position:relative;transition:transform .1s}
+.eb:hover:not(:disabled){transform:translateY(-2px)}
+.eb svg{width:100%;height:100%;display:block}
+.eb small{position:absolute;right:-6px;bottom:-6px;background:#15140f;color:#ead381;font-size:8px;padding:1px 4px}
+.eb .cd{position:absolute;inset:0;border-radius:7px;background:rgba(20,20,15,.55);display:grid;place-items:center;color:#fff;font:900 22px 'Barlow Condensed'}
+.eb:disabled{cursor:default}
+
+/* Bubbles over the board (Clash Royale style) */
+.board-stage{position:relative;width:min(100%,560px)}
+.board-stage .board-frame{width:100%}
+.bubble-layer{position:absolute;inset:12px;pointer-events:none;z-index:5}
+.bub{position:absolute;background:#fff;border:5px solid #15140f;border-radius:18px;padding:7px 9px 5px;box-shadow:0 6px 0 #15140f,inset 0 -7px 0 #e3e0d4;display:flex;align-items:center;gap:4px;transform:translateY(-100%) rotate(-4deg);animation:bub-pop .45s cubic-bezier(.2,1.6,.4,1)}
+.bub.flip{transform:translate(-60%,-100%) rotate(4deg);animation-name:bub-pop-flip}
+.bub svg{width:clamp(48px,11vw,76px);height:clamp(48px,11vw,76px);display:block}
+.bub .snd{font-size:15px}
+.bub:after{content:"";position:absolute;left:24px;bottom:-21px;border:10px solid transparent;border-top:12px solid #15140f}
+@keyframes bub-pop{0%{transform:translateY(-60%) scale(.3) rotate(-4deg);opacity:0}100%{transform:translateY(-100%) scale(1) rotate(-4deg);opacity:1}}
+@keyframes bub-pop-flip{0%{transform:translate(-60%,-60%) scale(.3) rotate(4deg);opacity:0}100%{transform:translate(-60%,-100%) scale(1) rotate(4deg);opacity:1}}
+.crowd{position:absolute;right:calc(100% + 22px);bottom:0;display:flex;flex-direction:column;gap:6px;align-items:flex-end}
+.crowd-bub{display:flex;align-items:center;gap:5px;background:#fff;border:3px solid #15140f;border-radius:12px;padding:3px 7px 3px 4px;box-shadow:0 3px 0 #15140f;animation:crowd-up 2.6s ease-out forwards}
+.crowd-bub svg{width:30px;height:30px;display:block}
+.crowd-bub span{font-size:9px;color:#333}
+@keyframes crowd-up{0%{transform:translateY(20px);opacity:0}12%{transform:none;opacity:1}80%{opacity:1}100%{transform:translateY(-30px);opacity:0}}
+
+/* Lobby: spectate list */
+.lobby-stack{display:flex;flex-direction:column;gap:24px;max-width:900px;margin:0 auto}
+.lobby-stack .lobby-panel{margin:0}
+.spectate-panel{padding:24px 28px}
+.spectate-panel>p{color:#adbcae;font-size:11px;margin:8px 0 14px}
+.live-list{display:flex;flex-direction:column}
+.live-game{display:grid;grid-template-columns:80px 1fr auto auto auto;gap:14px;align-items:center;border-top:1px solid #435341;padding:12px 2px;font-size:11px}
+.live-game strong{font-family:'Barlow Condensed';font-size:22px}
+.live-status{font-size:9px;letter-spacing:.1em;color:#a7ce91}
+.spectator-note{margin-top:12px;color:#a8b7a8;font-size:10px;line-height:1.6}
+
+@media(max-width:620px){
+  .live-game{grid-template-columns:1fr auto;gap:8px}
+  .live-players{grid-column:1/-1}
+  .bubble-layer{inset:7px}
+  .crowd{right:auto;left:-4px;align-items:flex-start}
+}
+@media(max-width:900px){.crowd{right:auto;left:-4px;align-items:flex-start}}
