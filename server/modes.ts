@@ -1,9 +1,10 @@
 // Game modes and which social features each one has.
-// Every game is Classic for now. When a new mode is added (e.g. a friend's mode),
-// add its name to ModeName and its features to MODES; the chat, emote,
-// spectate and voice code already checks these flags per game.
+// Classic is the original game. Chaos adds classes with abilities on a bigger
+// board. The chat, emote, spectate and voice code checks these flags per game.
 
-export type ModeName = 'classic';
+import type { BoardOptions } from '../packages/game-core/src/index.js';
+
+export type ModeName = 'classic' | 'chaos';
 
 export interface ModeFeatures {
   chat: boolean; // players and spectators can type to each other
@@ -14,9 +15,16 @@ export interface ModeFeatures {
 
 export const MODES: Record<ModeName, ModeFeatures> = {
   classic: { chat: true, emotes: true, spectate: true, voice: true },
+  chaos: { chat: true, emotes: true, spectate: true, voice: true },
 };
 
-// New games start in this mode
+// Board size per mode: Chaos needs room for clones, fingers and smashes
+export const BOARDS: Record<ModeName, BoardOptions> = {
+  classic: { width: 5, height: 5 },
+  chaos: { width: 7, height: 7 },
+};
+
+// Games without a mode (older code paths) count as Classic
 export const DEFAULT_MODE: ModeName = 'classic';
 
 export function features(mode: ModeName): ModeFeatures {

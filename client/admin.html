@@ -75,6 +75,8 @@
     .page-title { display: flex; justify-content: space-between; align-items: end; gap: 20px; margin-bottom: 30px; }
     .page-title h1 { font-size: clamp(44px, 6vw, 72px); margin-top: 10px; }
     .page-title p { color: var(--muted); font-size: 11px; margin: 10px 0 0; }
+    .login input.bad { border-color: var(--danger); box-shadow: 0 0 0 1px var(--danger); }
+    .login .hint { color: var(--dim); font-size: 10px; margin: -4px 0 0; }
     .grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)) minmax(300px, 1.1fr); gap: 25px; }
     .stat strong { display: block; font-family: var(--display); font-size: 84px; line-height: 1; color: #f3d77e; margin-top: 14px; }
     .stat small { display: block; color: var(--dim); font-size: 10px; margin-top: 6px; letter-spacing: .08em; }
@@ -123,6 +125,49 @@
     .watch-button { margin-left: 10px; background: var(--panel); border: 1px solid #77826b; color: var(--text); font-size: 9px; letter-spacing: .1em; padding: 5px 8px; }
     .watch-button:hover, .watch-button.active { background: var(--gold); color: #182019; border-color: var(--gold); }
     .game.watching { border-color: var(--gold); box-shadow: inset 3px 0 var(--gold); }
+    /* Chaos details: mode badge, classes, ability state, Chaos board in the watch view */
+    .mode { font-size: 9px; letter-spacing: .12em; padding: 5px 8px; border: 1px solid #9b8145; color: var(--gold-light); white-space: nowrap; }
+    /* Chaos games use the game's own Chaos colours (chaos-colours.css): purple panels, crimson-pink accents */
+    .mode.chaos { color: #fc7ba6; border-color: #8d43b8; background: #3b224a; }
+    .game.chaos { background: #1e1126; border-color: #58386b; color: #dcbdef; }
+    .game.chaos .slot { border-top-color: #4a2e5b; }
+    .game.chaos .game-head small, .game.chaos .slot .role, .game.chaos .game-foot { color: #a986bd; }
+    .game.chaos .game-foot { border-top-color: #4a2e5b; }
+    .game.chaos .score { color: #fd7fa9; }
+    .game.chaos .turn { color: #fa5189; }
+    .game.chaos .badge { border-color: #764c8f; color: #b594c8; }
+    .game.chaos .badge.playing { color: #fd84ad; border-color: #fa5189; }
+    .game.chaos .watch-button { background: #291932; border-color: #764c8f; color: #dcbdef; }
+    .game.chaos .watch-button.active { background: #fa5189; border-color: #fa5189; color: #1c1123; }
+    .game.chaos.watching { border-color: #fb6698; box-shadow: inset 3px 0 #fb6698; }
+    .slot .cls { color: #fb79a4; font-size: 10px; letter-spacing: .06em; }
+    .game-foot.powers, .game.chaos .game-foot.powers { color: #fc7ba6; }
+    .watch.chaos { background: #1e1126; border-color: #fa5189; color: #dcbdef; }
+    .watch.chaos .eyebrow, .watch.chaos .accent { color: #fa5189; }
+    .watch.chaos .sub, .watch.chaos .watch-note, .watch.chaos .w-none { color: #a986bd; }
+    .watch.chaos .watch-board { background: #201228; box-shadow: 0 0 0 2px #6f4587; }
+    .watch.chaos .watch-info .slot { background: #291932; border-color: #563569; }
+    .watch.chaos .watch-info .slot.active { border-color: #fb6698; box-shadow: inset 3px 0 #fb6698; }
+    .watch.chaos .watch-timer strong { color: #fd7fa9; }
+    .watch.chaos .watch-info .score { color: #fd7fa9; }
+    .watch.chaos .watch-info .turn { color: #fa5189; }
+    .watch.chaos .watch-info .role { color: #a986bd; }
+    .watch.chaos .eye-count { color: #fc7ba6; border-color: #8d43b8; background: #3b224a; }
+    .watch.chaos .ghost-button { background: #291932; border-color: #764c8f; color: #dcbdef; }
+    .watch.chaos .w-head { color: #fa5189; }
+    .watch.chaos .w-spec { background: #291932; border-color: #563569; }
+    .watch.chaos .w-chat { background: #1a0f20; border-color: #563569; }
+    .watch.chaos .w-cm .n { color: #a076b8; }
+    .watch.chaos .w-cm .t { background: #352041; border-color: #58386b; }
+    .watch.chaos .w-cm.sys { color: #8f62a9; }
+    .watch.chaos .w-form input { background: #1a0f20; border-color: #764c8f; }
+    .watch.chaos .w-form input:focus { border-color: #fa5189; }
+    .watch.chaos .w-form button { background: #fa5189; color: #1c1123; box-shadow: 3px 3px 0 #772da1; }
+    .watch-tile img.clone { opacity: .6; filter: drop-shadow(0 0 4px #7dd3ff); }
+    .watch-tile .finger { position: absolute; left: 38%; top: 38%; width: 24%; height: 24%; background: #ffd0d8; box-shadow: 0 0 6px #ff3d7f; z-index: 2; }
+    .watch-tile .tag { position: absolute; left: 2px; right: 2px; bottom: 2px; z-index: 3; font-size: 7px; letter-spacing: .06em; text-align: center; background: #000a; color: #ff9ccb; }
+    .admin-view { display: inline-block; margin-top: 8px; font-size: 9px; letter-spacing: .12em; padding: 5px 8px; border: 1px solid #8d43b8; background: #3b224a; color: #fc7ba6; }
+    .feed li.chaos .text { color: #fc7ba6; }
     .watch { display: grid; grid-template-columns: minmax(0, 420px) minmax(0, 1fr); gap: 26px; margin-bottom: 22px; padding: 18px; background: var(--panel-dark); border: 1px solid var(--gold); }
     .watch-board { display: grid; gap: 2px; aspect-ratio: 1; background: #1a251b; padding: 8px; box-shadow: 0 0 0 2px #747c62; }
     .watch-tile { position: relative; overflow: hidden; }
@@ -238,14 +283,15 @@
     <!-- Login -->
     <section id="login" class="panel login">
       <div class="login-body">
-        <span class="eyebrow accent">RESTRICTED</span>
-        <h1>Admin login</h1>
-        <p>Enter the server password to see connected clients and reset the game.</p>
+        <span class="eyebrow accent">ADMIN</span>
+        <h1>Enter the admin password</h1>
+        <p>The page shows nothing about the server until it's unlocked.</p>
         <form id="login-form">
           <label for="password">PASSWORD</label>
           <input id="password" type="password" placeholder="Admin password" autocomplete="current-password" required>
+          <p class="hint">Set on the server, never sent to players.</p>
           <p id="error" class="error" role="alert" hidden></p>
-          <button class="primary-button" type="submit">LOG IN <span>↗</span></button>
+          <button class="primary-button" type="submit">UNLOCK <span>▸</span></button>
         </form>
       </div>
     </section>
@@ -265,7 +311,8 @@
 
     <section id="dashboard" hidden>
       <div class="page-title">
-        <div><span class="eyebrow accent">CLASSIC · SERVER</span><h1>Dashboard</h1><p>Updates live as players connect, join and leave.</p></div>
+        <div><span class="eyebrow accent">CLASSIC · CHAOS · SERVER</span><h1>Dashboard</h1><p>Updates live as players connect, join and leave.</p></div>
+        <button id="logout" class="ghost-button" type="button">LOG OUT ⎋</button>
       </div>
 
       <div class="grid">
@@ -382,6 +429,23 @@
 
     // Games: one card per room with its two players (textContent only, like the player list)
     const STATUS = { ready: 'WAITING FOR READY', playing: 'PLAYING', paused: 'PAUSED', finished: 'FINISHED' };
+    const CLASS_NAMES = { allmight: 'All Might', naruto: 'Naruto', sukuna: 'Sukuna', afo: 'All For One', sasuke: 'Sasuke', gojo: 'Gojo' };
+    // A Chaos class sprite, or the Classic role art
+    const figure = (role, cls) => cls ? `/assets/class-${cls}.png` : `/assets/${role === 'warden' ? 'warden' : 'prisoner'}.svg`;
+    // "Naruto: ready · Gojo: cooldown 2 · Clones 2 · In the Void"
+    function powersLine(game) {
+      const c = game.state && game.state.chaos;
+      if (!c) return null;
+      const parts = game.players.filter((p) => p.role && p.cls).map((p) => `${CLASS_NAMES[p.cls]}: ${c.cooldown[p.role] > 0 ? `cooldown ${c.cooldown[p.role]}` : 'ready'}`);
+      if (c.charges) parts.push(`Clones banked ${c.charges}`);
+      if (c.clones.length) parts.push(`Clones on the map ${c.clones.length}`);
+      if (c.collected) parts.push(`Fingers ${c.collected}`);
+      if (c.stunned.prisoner || c.stunned.warden) parts.push(`Stunned: ${c.stunned.prisoner ? 'prisoner' : 'warden'}`);
+      if (c.locked) parts.push('Prisoner power stolen');
+      if (c.illusion) parts.push(`Illusion ${c.illusion}`);
+      if (c.inVoid) parts.push('In the Void');
+      return parts.join(' · ');
+    }
     const el = (tag, className, text) => {
       const node = document.createElement(tag);
       if (className) node.className = className;
@@ -445,17 +509,28 @@
       if (!watchParts || watchParts.id !== game.id) { buildWatch(box); renderWatchChat(); }
       const st = game.state;
       const { board, info, specs } = watchParts;
+      const c = st.chaos, classes = st.classes || {};
+      const at = (list, x, y) => (list || []).some((p) => p.x === x && p.y === y);
+      box.classList.toggle('chaos', game.mode === 'chaos');
 
       board.replaceChildren();
       board.style.gridTemplateColumns = `repeat(${st.board.width}, 1fr)`;
       st.board.cells.forEach((tile, i) => {
         const x = i % st.board.width, y = Math.floor(i / st.board.width);
         const cell = el('div', 'watch-tile');
-        const floor = el('img'); floor.src = `/assets/${tile}.svg`; floor.alt = '';
+        const floor = el('img'); floor.src = `/assets/${tile}${game.mode === 'chaos' ? '-chaos' : ''}.svg`; floor.alt = '';
         cell.appendChild(floor);
+        if (c && at(c.fingers, x, y)) cell.appendChild(el('span', 'finger'));
+        // Clones are marked (see-through, blue glow) so the admin always knows the real one
+        if (c && at(c.clones, x, y)) { const img = el('img', 'char clone'); img.src = figure('prisoner', classes.prisoner); img.alt = 'clone'; cell.appendChild(img); }
+        if (c && at(c.wardenClones, x, y)) { const img = el('img', 'char clone'); img.src = figure('warden', classes.warden); img.alt = 'warden clone'; cell.appendChild(img); }
         ['warden', 'prisoner'].forEach((role) => {
           const pos = st.positions[role];
-          if (pos.x === x && pos.y === y) { const c = el('img', 'char'); c.src = `/assets/${role}.svg`; c.alt = role; cell.appendChild(c); }
+          if (pos.x === x && pos.y === y) {
+            const img = el('img', 'char'); img.src = figure(role, classes[role]); img.alt = role; cell.appendChild(img);
+            const tag = !c ? null : c.stunned[role] ? 'STUNNED' : role === 'prisoner' && c.inVoid ? 'IN VOID' : role === 'prisoner' && c.illusion ? 'ILLUSION' : null;
+            if (tag) cell.appendChild(el('span', 'tag', tag));
+          }
         });
         board.appendChild(cell);
       });
@@ -469,11 +544,12 @@
       top.append(el('span', 'eyebrow accent', `WATCHING · ROOM game:${game.id}`), close);
       const title = el('h2', '', `GAME ${game.id}`);
       title.appendChild(el('span', 'eye-count', `👁 ${(game.spectators || []).length} WATCHING`));
-      info.append(top, title, el('p', 'sub', STATUS[game.status] || game.status));
+      info.append(top, title, el('p', 'sub', `${game.mode === 'chaos' ? 'CHAOS · ' : 'CLASSIC · '}${STATUS[game.status] || game.status}`));
+      if (c) info.appendChild(el('p', 'admin-view', "👁 ADMIN VIEW · the whole board, clones marked, even in Sasuke's darkness"));
       game.players.forEach((p) => {
         const row = el('div', `slot${game.turn === p.nickname ? ' active' : ''}`);
-        const img = el('img'); img.src = `/assets/${p.role === 'warden' ? 'warden' : 'prisoner'}.svg`; img.alt = '';
-        const name = el('strong', '', p.nickname); name.style.flex = '1';
+        const img = el('img'); img.src = figure(p.role, p.cls); img.alt = '';
+        const name = el('strong', '', p.cls ? `${p.nickname} · ${CLASS_NAMES[p.cls]}` : p.nickname); name.style.flex = '1';
         row.append(img, name);
         if (game.turn === p.nickname) row.appendChild(el('span', 'turn', '▶ TURN'));
         row.append(el('span', 'role', (p.role || '').toUpperCase()), el('span', 'score', String(p.score)), kickButton(p.nickname, `Game ${game.id}`));
@@ -615,7 +691,8 @@
       const list = $('games');
       list.replaceChildren();
       games.forEach((game) => {
-        const card = el('div', `game${game.id === watchingId ? ' watching' : ''}`);
+        const chaos = game.mode === 'chaos';
+        const card = el('div', `game${chaos ? ' chaos' : ''}${game.id === watchingId ? ' watching' : ''}`);
         const head = el('div', 'game-head');
         const title = el('div');
         title.append(el('strong', '', `GAME ${game.id}`), el('small', '', `room game:${game.id}`));
@@ -623,19 +700,22 @@
         const watch = el('button', `watch-button${game.id === watchingId ? ' active' : ''}`, game.id === watchingId ? 'WATCHING' : 'WATCH ▸');
         watch.type = 'button';
         watch.addEventListener('click', () => watchGame(game.id === watchingId ? null : game.id));
-        right.append(el('span', `badge ${game.status}`, STATUS[game.status] || game.status), watch);
+        right.append(el('span', `mode${chaos ? ' chaos' : ''}`, chaos ? 'CHAOS' : 'CLASSIC'), el('span', `badge ${game.status}`, STATUS[game.status] || game.status), watch);
         head.append(title, right);
         card.appendChild(head);
         game.players.forEach((p) => {
           const row = el('div', 'slot');
-          const img = el('img'); img.src = p.role === 'warden' ? '/assets/warden.svg' : '/assets/prisoner.svg'; img.alt = '';
+          const img = el('img'); img.src = figure(p.role, p.cls); img.alt = '';
           const name = el('strong', '', p.nickname);
           row.append(img, name);
+          if (p.cls) row.appendChild(el('span', 'cls', CLASS_NAMES[p.cls].toUpperCase()));
           if (game.turn === p.nickname) row.appendChild(el('span', 'turn', '▶ TURN'));
           if (game.status === 'ready') row.appendChild(el('span', 'turn', game.ready.includes(p.nickname) ? '✓ READY' : 'NOT READY'));
           row.append(el('span', 'role', (p.role || '').toUpperCase()), el('span', 'score', String(p.score)));
           card.appendChild(row);
         });
+        const powers = powersLine(game);
+        if (powers && game.status !== 'finished') card.appendChild(el('div', 'game-foot powers', powers));
         if (game.status === 'finished' && game.winner) card.appendChild(el('div', 'game-foot', `${game.winner} won · waiting for rematch votes`));
         const specs = game.spectators || [];
         const foot = el('div', 'game-foot spectators');
@@ -673,11 +753,11 @@
       const feedList = $('feed');
       feedList.replaceChildren();
       (state.feed || []).forEach((f) => {
-        const li = el('li');
+        const li = el('li', f.chaos ? 'chaos' : '');
         li.append(el('time', '', new Date(f.at).toLocaleTimeString()), el('span', 'room', `GAME ${f.gameId}`), el('span', 'text', f.text));
         feedList.appendChild(li);
       });
-      if (!state.feed || state.feed.length === 0) feedList.appendChild(el('li', '', 'No chat yet.'));
+      if (!state.feed || state.feed.length === 0) feedList.appendChild(el('li', '', 'Nothing yet.'));
     }
 
     function addLog(message) {
@@ -707,7 +787,9 @@
 
       socket.on('connect_error', (err) => {
         if ($('dashboard').hidden) {
-          showError(err.message);  // e.g. "Wrong admin password"
+          showError(err.message === 'Wrong admin password' ? 'Wrong password. Try again.' : err.message);
+          passwordInput.classList.add('bad');
+          passwordInput.select();
           setPill(false, 'NOT LOGGED IN');
           socket.disconnect();     // stop it retrying with the wrong password
         } else {
@@ -739,6 +821,19 @@
         renderBubbles(); renderWatchChat();
       });
       socket.on('connect', () => { if (watchingId !== null) socket.emit('admin:watch', watchingId); }); // after a server restart
+    });
+
+    passwordInput.addEventListener('input', () => passwordInput.classList.remove('bad'));
+
+    // Log out: drop the connection and go back to the password screen
+    $('logout').addEventListener('click', () => {
+      if (socket) { socket.removeAllListeners(); socket.disconnect(); socket = null; }
+      watchingId = null; watchParts = null; $('watch').hidden = true;
+      passwordInput.value = '';
+      $('dashboard').hidden = true;
+      $('login').hidden = false;
+      setPill(false, 'NOT LOGGED IN');
+      passwordInput.focus();
     });
 
     // Chat on/off for everyone

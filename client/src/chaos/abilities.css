@@ -1,0 +1,120 @@
+/* Chaos abilities on the board and in the controls panel */
+
+/* Aiming marks (after Q / E) */
+.tile.mark-aim:after,.tile.mark-reach:after,.tile.mark-sel:after{content:"";position:absolute;inset:3px;z-index:1;pointer-events:none}
+.tile.mark-aim:after{border:2px dashed #ffd84a;background:#ffd84a1c}
+.tile.mark-reach:after{border:2px dashed #7dd3ff;background:#7dd3ff18}
+.tile.mark-sel:after{border:3px solid #ffd84a;box-shadow:inset 0 0 12px #ffd84a88}
+.tile.mark-reach,.tile.mark-sel{cursor:pointer}
+.tile.mark-reach:hover:after,.tile.mark-sel:hover:after{background:#ffffff2a}
+
+/* Smashed ground stays cracked (only drawn) */
+.tile.cracked:before{content:"";position:absolute;inset:0;z-index:1;pointer-events:none;background:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 40 40'%3E%3Cpath d='M0 20 L8 17 L13 23 L20 18 L26 24 L32 19 L40 21 M13 23 L11 31 M26 24 L29 33 M20 18 L18 9 M32 19 L35 11' stroke='%23140a06' stroke-width='2.5' fill='none'/%3E%3Cpath d='M0 21 L8 18 L13 24 L20 19 L26 25 L32 20 L40 22' stroke='%23ffcf7a' stroke-width='0.8' fill='none' opacity='.7'/%3E%3C/svg%3E") center/100% 100%}
+
+/* Sukuna's fingers */
+.finger{position:absolute;left:28%;top:42%;width:44%;height:18%;z-index:1;background:#e2bca2;border:2px solid #4a1a1a;border-radius:8px 3px 3px 8px;box-shadow:0 0 8px #ff3d7f;animation:finger-glow 1.6s ease-in-out infinite}
+.finger:after{content:"";position:absolute;right:8%;top:20%;width:18%;height:55%;background:#f4d9c6;border-radius:2px}
+@keyframes finger-glow{50%{box-shadow:0 0 14px #ff3d7f}}
+
+/* Naruto's clones: see-through with the way they walk (only on Naruto's screen) */
+.character.clone{opacity:.72}
+.character.clone.pending{opacity:.45}
+.clone-arrow{position:absolute;z-index:4;right:4%;bottom:2%;font:700 clamp(12px,2vw,20px)/1 'Space Mono',monospace;color:#fff;text-shadow:0 0 3px #000,0 0 3px #000,0 0 3px #000;pointer-events:none}
+.clone-arrow.none{color:#ffd84a;animation:wait 1s steps(2) infinite}
+
+/* Stunned */
+.character.stunned{filter:grayscale(.7) brightness(.8) drop-shadow(3px 5px 0 #0009);animation:dizzy 1.2s ease-in-out infinite}
+@keyframes dizzy{25%{transform:rotate(-6deg)}75%{transform:rotate(6deg)}}
+.stun-badge{position:absolute;z-index:5;top:2px;left:50%;transform:translateX(-50%);white-space:nowrap;font-size:7px;letter-spacing:.06em;background:#140c14;color:#ffd84a;border:1px solid #ffd84a;padding:1px 3px}
+.character.buff{transform:scale(1.12);filter:drop-shadow(0 0 6px #ffd84a) drop-shadow(3px 5px 0 #0009)}
+
+/* One-off effects from the last turn */
+.fx{position:absolute;inset:0;z-index:3;pointer-events:none}
+.fx.shock{background:linear-gradient(#fff6c0,#f0a040);animation:shock .9s ease-out forwards}
+@keyframes shock{0%{opacity:.95}100%{opacity:0}}
+.fx.boom{left:50%;top:50%;inset:auto;width:130%;height:130%;transform:translate(-50%,-50%);background:radial-gradient(circle,#fff 0 30%,#fff36a 31% 52%,#ff6a1a 53%);clip-path:polygon(50% 0,60% 30%,92% 10%,74% 42%,100% 52%,72% 62%,90% 94%,58% 72%,46% 100%,38% 70%,6% 90%,26% 58%,0 44%,30% 36%,12% 6%,42% 28%);animation:boom 1s ease-out forwards}
+@keyframes boom{0%{transform:translate(-50%,-50%) scale(.3);opacity:1}60%{opacity:1}100%{transform:translate(-50%,-50%) scale(1.1);opacity:0}}
+.fx.poof{background:radial-gradient(circle at 35% 40%,#fff 0 18%,transparent 19%),radial-gradient(circle at 65% 45%,#eee 0 20%,transparent 21%),radial-gradient(circle at 50% 70%,#ddd 0 20%,transparent 21%);animation:shock 1.2s ease-out forwards}
+.fx.crush{display:grid;place-items:center;color:#ff4a5a;font:700 clamp(18px,3vw,30px)/1 'Space Mono',monospace;text-shadow:0 0 3px #000;animation:shock 1.6s ease-in forwards}
+.fx.wind{background:repeating-linear-gradient(90deg,transparent 0 6px,#c0182a77 6px 9px);animation:shock 1.2s ease-out forwards}
+.fx.sparkle{background:radial-gradient(circle,#ff8fb4aa 0 30%,transparent 60%);animation:shock 1s ease-out forwards}
+
+/* Ability buttons in the controls panel */
+.ability-row{margin:0 0 12px}
+.ability-buttons{display:flex;flex-wrap:wrap;gap:8px}
+.ab-btn{display:inline-flex;align-items:center;gap:7px;font-size:10px;letter-spacing:.06em;padding:6px 10px 6px 6px;border:1px solid #58624f;background:#1a241e;color:#a8b7a8}
+.ab-btn .keycap{min-width:22px;height:22px;font-size:10px}
+.ab-btn.ready{border-color:#ff3d7f;background:#ff3d7f22;color:#fff}
+.ab-btn.ready:hover{background:#ff3d7f44}
+.ab-btn.on{outline:2px solid #ffd84a;outline-offset:1px}
+.ab-btn:disabled{opacity:.6}
+.pips{display:inline-flex;gap:3px}
+.pips s{width:9px;height:9px;background:#0007;outline:1px solid #58624f;display:inline-block}
+.pips s.on{background:#ffd84a;outline-color:#fff0a8}
+.ability-hint{margin:8px 0 0;font-size:10px;line-height:1.5;color:#ffd84a}
+.ability-row .small-button{margin-top:8px}
+.ab-soon{font-size:10px;color:#a8b7a8}
+
+/* What happened last turn */
+.chaos-log{margin-top:10px;border-top:1px solid #ffffff1b;padding-top:9px;font-size:10px;line-height:1.5;text-align:center}
+.chaos-log p{margin:0}
+.chaos-log .last{color:#ffd84a}
+.chaos-log .rival{color:#b49cc6}
+.theme-chaos .ab-btn{border-color:#4d2a63;background:#1b0d25;color:#b49cc6}
+.theme-chaos .ab-btn.ready{border-color:#ff3d7f;background:#ff3d7f22;color:#fff}
+.theme-chaos .pips s{outline-color:#4d2a63}
+
+/* All For One's second stolen move */
+.keycap.r,.app-shell.theme-chaos .keycap.r{background:#ffa64a;border-color:#ffd6a8;color:#140c14}
+
+/* All For One's clone: see-through, with its path and how long it lasts */
+.character.warden.clone{opacity:.7;filter:hue-rotate(40deg) drop-shadow(3px 5px 0 #0009)}
+.stun-badge.clone-life{color:#ffa64a;border-color:#ffa64a}
+
+/* Covers drawn over the whole board: Sasuke's darkness, the Void */
+.board-frame{position:relative}
+.board-frame.blind .board{filter:brightness(.12) saturate(0)}
+.board-veil{position:absolute;inset:12px;z-index:6;display:grid;place-content:center;gap:8px;text-align:center;pointer-events:none;padding:16px}
+.board-veil b{font:900 clamp(30px,6vw,54px)/1 'Barlow Condensed',sans-serif;letter-spacing:.06em}
+.board-veil p{margin:0 auto;max-width:300px;font-size:11px;line-height:1.6;color:#e8dcef}
+.board-veil.sharingan b{color:#ff2a3a;text-shadow:0 0 18px #ff2a3a99}
+.board-veil.sharingan:before{content:"";justify-self:center;width:58px;height:58px;border-radius:50%;margin-bottom:6px;background:radial-gradient(circle,#111 0 18%,#c0101c 19% 100%);box-shadow:0 0 24px #ff2a3a88;animation:spin 3s linear infinite}
+.board-veil.void{background:#05031099}
+.board-veil.void b{color:#cfe6ff;text-shadow:0 0 18px #7dd3ff}
+@keyframes spin{to{transform:rotate(360deg)}}
+.character.voided{opacity:.35;filter:blur(1px) drop-shadow(0 0 8px #7dd3ff)}
+
+/* Domain Expansion title card (everyone), sized to the board with container units */
+.dx-wrap{position:absolute;inset:0;z-index:7;overflow:hidden;background:#03060e;container-type:size}
+.dx-card{position:absolute;inset:0;overflow:hidden;color:#fff;animation:dx-in .35s ease-out}
+@keyframes dx-in{from{opacity:0;transform:scale(1.08)}}
+.dx-bg{position:absolute;inset:0;width:100%;height:100%;object-fit:cover;image-rendering:pixelated}
+.dx-gojo{position:absolute;left:35.9%;top:61.5%;width:28.15%;height:34.8%;image-rendering:pixelated;-webkit-mask:linear-gradient(#000 82%,transparent);mask:linear-gradient(#000 82%,transparent)}
+.dx-text{position:absolute;left:0;right:0;top:4cqh;text-align:center}
+.dx-text b{display:block;font:900 11.5cqw/.9 'Barlow Condensed',sans-serif;letter-spacing:.04em;color:#f4fbff;text-shadow:0 0 22px #38b6ff,0 0 3px #fff;margin:1.85cqw 0}
+.dx-text span{font-size:max(9px,2.6cqw);letter-spacing:.4em;color:#7fe6ff;text-shadow:0 0 8px #2aa9ff}
+
+/* The Void challenge (prisoner) */
+.void-overlay{position:absolute;inset:0;z-index:7;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:12px;padding:20px;background:#03060e;cursor:pointer;user-select:none;touch-action:manipulation;overflow:hidden;container-type:size}
+.void-overlay>*{position:relative}
+.void-overlay>.dx-bg{position:absolute}
+.void-overlay>.dx-card{position:absolute}
+.dx-bg.dim{filter:brightness(.45)}
+.void-top{position:absolute!important;top:3.3cqw;left:4cqw;right:4cqw;display:flex;align-items:center;gap:12px;color:#fff}
+.void-face{flex:none;width:15.5cqw;height:15.5cqw;overflow:hidden;border:2px solid #7fe6ff88;box-shadow:0 0 14px #2aa9ff66;background:#03060e}
+.void-face img{display:block;width:28.15cqw;height:34.8cqw;margin:-7.4cqw 0 0 -6.3cqw;image-rendering:pixelated}
+.void-top b{display:block;font:900 5.9cqw/1 'Barlow Condensed',sans-serif;letter-spacing:.05em;text-shadow:0 0 16px #38b6ff}
+.void-top small{display:block;font-size:max(8px,1.85cqw);letter-spacing:.4em;color:#9fe9ff;margin-top:5px}
+.void-round{margin:8cqh 0 0;font-size:11px;letter-spacing:.2em;color:#7fe6ff}
+.void-bar{width:86%;height:38px;background:#05061acc;border:2px solid #5fc8ff88;box-shadow:0 0 20px #38b6ff55}
+.void-zone{position:absolute;top:0;bottom:0;background:linear-gradient(#ffffff,#7dd3ff);box-shadow:0 0 18px #7dd3ff}
+.void-line{position:absolute;top:-7px;bottom:-7px;width:3px;margin-left:-1.5px;background:#ff3d7f;box-shadow:0 0 8px #ff3d7f}
+.void-timer{width:86%;height:4px;background:#ffffff1a}
+.void-timer span{display:block;height:100%;background:#7dd3ff}
+.void-pips{display:flex;gap:8px}
+.void-pips s{display:grid;place-items:center;width:30px;height:30px;text-decoration:none;font-size:12px;border:2px solid #3b4a8a;color:#8090c0;background:#05061a99}
+.void-pips s.now{border-color:#7dd3ff;color:#fff}
+.void-pips s.hit{background:#7dd3ff;border-color:#e8f4ff;color:#06030f}
+.void-pips s.miss{background:#ff3d7f;border-color:#ffb0c8;color:#140c14}
+.void-help{margin:0;font-size:11px;color:#dbe6ff;text-align:center}
+.void-help .keycap{min-width:auto;height:20px;font-size:9px;margin:0 3px}

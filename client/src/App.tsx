@@ -1,14 +1,28 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { io, type Socket } from 'socket.io-client';
-import type { ClientToServerEvents, GameState, MatchInfo, MatchResult, PauseStatus, ReadyStatus, ServerToClientEvents } from '../../server/events';
+import type { ClassId, ClientToServerEvents, GameState, MatchInfo, MatchResult, PauseStatus, PickingStatus, QueueStatus, ReadyStatus, Role, ServerToClientEvents } from '../../server/events';
 import { SERVER_URL } from './config';
 import { useSocial } from './social/useSocial';
 import { BoardStage, ChatPanel, EmoteStrip, EyePill, KeyList, SpectateList, crowdEmotes, emotesFor } from './social/SocialUI';
 import { isMuted, setMuted, unlockAudio } from './social/sound';
 import './social/social.css';
+import { ChaosModePicker, ClassDetails, ClassPicker, ControlsBar, ModePicker, PixelSprite, RematchPicker, SidePicker } from './chaos/Menus';
+import { CLASS_INFO } from './chaos/classInfo';
+import { spriteUrl } from './chaos/pixelSprites';
+import { ARROW, describeEvents, KEY_DIRECTION, rivalStatus, useChaosControls, type AbilityRequest, type BoardChaos } from './chaos/Abilities';
+import { introLeft, VoidWatch } from './chaos/DomainExpansion';
+import './chaos/abilities.css';
+import './chaos/menus.css';
+import './chaos/chaos-colours.css';
 
 type GameSocket = Socket<ServerToClientEvents, ClientToServerEvents>;
 type Direction = 'up' | 'down' | 'left' | 'right';
+type MenuStep = 'mode' | 'chaos' | 'side' | 'class';
+const MAX_STAYS = 2; // same as the game core
+
+// Picture of a character: the Chaos class sprite, or the Classic prisoner / warden
+const characterSrc = (role: Role, cls: ClassId | null | undefined): string =>
+  cls ? spriteUrl(CLASS_INFO[cls].sprite) : `/assets/${role}.svg`;
 const directions: Record<Direction, { x: number; y: number; label: string; key: string }> = {
   up: { x: 0, y: -1, label: '↑', key: 'W' },
   left: { x: -1, y: 0, label: '←', key: 'A' },
@@ -18,6 +32,8 @@ const directions: Record<Direction, { x: number; y: number; label: string; key: 
 
 function legalDirections(state: GameState | null, info: MatchInfo | null): Direction[] {
   if (!state || !info || state.status !== 'active' || state.turnNickname !== info.you.nickname) return [];
+  if (state.chaos?.inVoid) return []; // the Void challenge instead of a move
+  if (state.chaos?.blind) return ['up', 'left', 'down', 'right']; // in the dark any key can be tried
   const from = state.positions[info.you.role];
   return (Object.keys(directions) as Direction[]).filter((direction) => {
     const delta = directions[direction];
@@ -25,33 +41,84 @@ function legalDirections(state: GameState | null, info: MatchInfo | null): Direc
     const y = from.y + delta.y;
     if (x < 0 || y < 0 || x >= state.board.width || y >= state.board.height) return false;
     const tile = state.board.cells[y * state.board.width + x];
+    if (info.you.role === 'prisoner' && state.chaos?.clones.some((c) => c.x === x && c.y === y)) return false; // clones block Naruto
     return tile === 'free' || (tile === 'tunnel' && info.you.role === 'prisoner');
   });
 }
 
-function Board({ state, info, legal }: { state: GameState; info: MatchInfo; legal: Direction[] }) {
+function Board({ state, info, legal, chaos }: { state: GameState; info: MatchInfo; legal: Direction[]; chaos?: BoardChaos }) {
   const from = state.positions[info.you.role];
-  const targets = new Set(legal.map((direction) => {
+  const terrain = state.mode === 'chaos' ? '-chaos' : '';
+  const targets = new Set(state.chaos?.blind ? [] : legal.map((direction) => {
     const delta = directions[direction];
     return `${from.x + delta.x},${from.y + delta.y}`;
   }));
-  return <div className="board-frame">
-    <div className="board" role="img" aria-label={`${state.board.width} by ${state.board.height} map. Warden at column ${state.positions.warden.x + 1}, row ${state.positions.warden.y + 1}. Prisoner at column ${state.positions.prisoner.x + 1}, row ${state.positions.prisoner.y + 1}. Tunnel marked by a glowing portal.`} style={{ gridTemplateColumns: `repeat(${state.board.width}, 1fr)` }}>
+  const c = state.chaos;
+  const at = <T extends { x: number; y: number }>(list: readonly T[] | undefined, x: number, y: number): T | undefined => list?.find((p) => p.x === x && p.y === y);
+  const smash = c?.events.find((e) => e.kind === 'smash');
+  // Tiles the last punch flew over, for the shockwave flash
+  const shock = new Set<string>();
+  if (smash?.kind === 'smash') {
+    const d = directions[smash.direction];
+    for (let x = smash.from.x + d.x, y = smash.from.y + d.y; x >= 0 && y >= 0 && x < state.board.width && y < state.board.height; x += d.x, y += d.y) shock.add(`${x},${y}`);
+  }
+  const fx = new Map<string, string>(); // tile -> one-off effect
+  c?.events.forEach((e) => {
+    if (e.kind === 'poof') fx.set(`${e.at.x},${e.at.y}`, 'poof');
+    if (e.kind === 'crush') fx.set(`${e.at.x},${e.at.y}`, 'crush');
+    if (e.kind === 'dismantle') fx.set(`${e.at.x},${e.at.y}`, 'boom');
+    if (e.kind === 'shrine') fx.set(`${e.to.x},${e.to.y}`, 'wind');
+    if (e.kind === 'collect') fx.set(`${e.at.x},${e.at.y}`, 'sparkle');
+    if (e.kind === 'smash' && e.hit) { const target = state.positions[e.by === 'prisoner' ? 'warden' : 'prisoner']; fx.set(`${target.x},${target.y}`, 'boom'); }
+  });
+  const prisonerSrc = chaos?.prisonerSprite ? spriteUrl(chaos.prisonerSprite) : characterSrc('prisoner', state.classes?.prisoner);
+  const hidden = !!c?.hidden;
+  const blind = !!c?.blind;
+  // A badge over the prisoner (over every figure when Naruto is hidden, so it gives nothing away)
+  const prisonerBadge = !c ? null : c.stunned.prisoner > 0 ? `STUNNED · ${c.stunned.prisoner}`
+    : c.illusion > 0 ? `ILLUSION · ${c.illusion}` : c.locked > 0 ? 'POWER STOLEN' : null;
+  const wardenClass = state.classes?.warden ? CLASS_INFO[state.classes.warden].name : 'The warden';
+  return <div className={`board-frame${blind ? ' blind' : ''}${c?.inVoid ? ' in-void' : ''}`}>
+    <div className="board" role="img" aria-label={`${state.board.width} by ${state.board.height} map. Warden at column ${state.positions.warden.x + 1}, row ${state.positions.warden.y + 1}. ${hidden ? `${(c?.clones.length ?? 0) + 1} Narutos on the map, one of them real.` : `Prisoner at column ${state.positions.prisoner.x + 1}, row ${state.positions.prisoner.y + 1}.`} Tunnel marked by a glowing portal.`} style={{ gridTemplateColumns: `repeat(${state.board.width}, 1fr)` }}>
       {state.board.cells.map((tile, index) => {
         const x = index % state.board.width;
         const y = Math.floor(index / state.board.width);
+        const id = `${x},${y}`;
         const warden = state.positions.warden.x === x && state.positions.warden.y === y;
         const prisoner = state.positions.prisoner.x === x && state.positions.prisoner.y === y;
-        const label = `${tile === 'free' ? 'Floor' : tile === 'obstacle' ? 'Wall' : 'Tunnel'}, column ${x + 1}, row ${y + 1}${warden ? ', warden' : ''}${prisoner ? ', prisoner' : ''}${targets.has(`${x},${y}`) ? ', legal destination' : ''}`;
-        return <div key={index} className={`tile tile-${tile}${targets.has(`${x},${y}`) ? ' tile-legal' : ''}`} title={label}>
-          <img className="terrain" src={`/assets/${tile}.svg`} alt="" />
-          {warden && <img className="character warden" src="/assets/warden.svg" alt="" />}
-          {prisoner && <img className="character prisoner" src="/assets/prisoner.svg" alt="" />}
-          {targets.has(`${x},${y}`) && <span className="move-dot" />}
+        const clone = at(c?.clones, x, y);
+        const wardenClone = at(c?.wardenClones, x, y);
+        const pending = chaos?.pending.find((p) => p.x === x && p.y === y);
+        const mark = chaos?.marks.get(id);
+        const label = `${tile === 'free' ? 'Floor' : tile === 'obstacle' ? 'Wall' : 'Tunnel'}, column ${x + 1}, row ${y + 1}${warden ? ', warden' : ''}${prisoner ? hidden ? ', Naruto' : ', prisoner' : ''}${clone ? ', Naruto' + (hidden ? '' : ' clone') : ''}${at(c?.fingers, x, y) ? ', finger' : ''}${targets.has(id) ? ', legal destination' : ''}`;
+        return <div key={index} className={`tile tile-${tile}${targets.has(id) ? ' tile-legal' : ''}${mark ? ` ${mark}` : ''}${at(c?.cracks, x, y) ? ' cracked' : ''}`} title={label}
+          onClick={mark && chaos?.onTile ? () => chaos.onTile?.(x, y) : undefined}>
+          <img className="terrain" src={`/assets/${tile}${terrain}.svg`} alt="" />
+          {at(c?.fingers, x, y) && <span className="finger" />}
+          {clone && <><img className={`character prisoner${hidden ? '' : ' clone'}`} src={characterSrc('prisoner', state.classes?.prisoner)} alt="" />{clone.direction && <span className={`clone-arrow ${clone.direction}`}>{ARROW[clone.direction]}</span>}</>}
+          {pending && <><img className="character prisoner clone pending" src={characterSrc('prisoner', state.classes?.prisoner)} alt="" /><span className={`clone-arrow ${pending.direction ?? 'none'}`}>{pending.direction ? ARROW[pending.direction] : '?'}</span></>}
+          {wardenClone && <><img className="character warden clone" src={characterSrc('warden', state.classes?.warden)} alt="" /><span className={`clone-arrow ${wardenClone.direction}`}>{ARROW[wardenClone.direction]}</span><span className="stun-badge clone-life">CLONE · {wardenClone.life}</span></>}
+          {warden && !blind && <img className={`character warden${c && c.stunned.warden > 0 ? ' stunned' : ''}`} src={characterSrc('warden', state.classes?.warden)} alt="" />}
+          {prisoner && !blind && <img className={`character prisoner${chaos?.prisonerSprite ? ' buff' : ''}${c?.inVoid ? ' voided' : ''}`} src={prisonerSrc} alt="" />}
+          {warden && !blind && c && c.stunned.warden > 0 && <span className="stun-badge">STUNNED · {c.stunned.warden}</span>}
+          {!blind && prisonerBadge && (prisoner || (hidden && clone)) && <span className="stun-badge">{prisonerBadge}</span>}
+          {shock.has(id) && <span key={`s${state.serverTime}`} className="fx shock" />}
+          {fx.has(id) && <span key={`f${state.serverTime}`} className={`fx ${fx.get(id)}`}>{fx.get(id) === 'crush' ? '✕' : ''}</span>}
+          {targets.has(id) && !blind && <span className="move-dot" />}
         </div>;
       })}
     </div>
+    {blind && c && <div className="board-veil sharingan"><b>SHARINGAN</b><p>You can't see a thing. Your keys are shuffled for {c.illusion} more turn{c.illusion === 1 ? '' : 's'}.</p></div>}
+    {chaos?.overlay ?? (c?.inVoid && <VoidWatch key={state.turnDeadline} ms={introLeft(state)} wardenClass={wardenClass} />)}
   </div>;
+}
+
+// Chaos: what happened last turn, and what the rival's power is up to
+function ChaosLog({ state, you, rival }: { state: GameState; you: Role | null; rival: ClassId | null }) {
+  const last = describeEvents(state, you);
+  const status = rivalStatus(state, rival);
+  if (!last && !status) return null;
+  return <div className="chaos-log">{last && <p className="last">{last}</p>}{status && <p className="rival">{status}</p>}</div>;
 }
 
 // Two names with READY / WAITING, used on the Ready and Paused screens
@@ -64,10 +131,10 @@ function StatusList({ names, ready, you }: { names: string[]; ready: string[]; y
   </ul>;
 }
 
-function PlayerCard({ name, role, score, active, self, label }: { name: string; role: string; score: number; active: boolean; self: boolean; label?: string }) {
+function PlayerCard({ name, role, cls, score, active, self, label }: { name: string; role: Role; cls?: ClassId | null; score: number; active: boolean; self: boolean; label?: string }) {
   return <div className={`player-card${active ? ' player-active' : ''}`}>
-    <div className={`portrait portrait-${role}`}><img src={`/assets/${role}.svg`} alt="" /></div>
-    <div className="player-copy"><span className="eyebrow">{label ?? (self ? 'YOU' : 'RIVAL')} · {role.toUpperCase()}</span><strong>{name}</strong></div>
+    <div className={`portrait portrait-${role}`}><img src={characterSrc(role, cls)} alt="" /></div>
+    <div className="player-copy"><span className="eyebrow">{label ?? (self ? 'YOU' : 'RIVAL')} · {cls ? CLASS_INFO[cls].name.toUpperCase() : role.toUpperCase()}</span><strong>{name}</strong></div>
     <div className="score"><span>PTS</span><strong>{score}</strong></div>
   </div>;
 }
@@ -88,6 +155,12 @@ export default function App() {
   const [notice, setNotice] = useState('');
   const [kickedReason, setKickedReason] = useState<string | null>(null); // shown on the name screen after the admin kicks you
   const kickedRef = useRef(false);
+  // After joining: which menu is open, the side being picked, and the queue the server confirmed
+  const [menu, setMenu] = useState<MenuStep>('mode');
+  const [pickSide, setPickSide] = useState<Role | null>(null);
+  const [queued, setQueued] = useState<QueueStatus | null>(null);
+  const [picking, setPicking] = useState<PickingStatus | null>(null); // Chaos rematch: re-pick side and class
+  const [showHelp, setShowHelp] = useState(false); // the "?" keybind card
   const [receivedAt, setReceivedAt] = useState(0);
   const [elapsed, setElapsed] = useState(0);
 
@@ -101,6 +174,7 @@ export default function App() {
     });
     client.on('disconnect', (reason) => {
       setConnected(false); setJoined(false); setInfo(null); setState(null); setResult(null); setReadyStatus(null); setPauseStatus(null);
+      setQueued(null); setPicking(null); setMenu('mode'); setPickSide(null);
       if (kickedRef.current) {
         kickedRef.current = false;
         client.connect(); // kicked: reconnect straight away so the player can join again
@@ -120,14 +194,18 @@ export default function App() {
     client.on('connect_error', () => setNotice('Cannot reach the game server. Retrying…'));
     client.on('player:welcome', (message) => { setWelcome(message); setJoined(true); setNotice(''); });
     client.on('player:rejected', (message) => { pendingName.current = ''; setNotice(message); });
-    client.on('game:started', (value) => { setInfo(value); setState(null); setResult(null); setVotes({}); setReadyStatus(null); setPauseStatus(null); setNotice(''); });
+    client.on('game:started', (value) => { setInfo(value); setState(null); setResult(null); setVotes({}); setReadyStatus(null); setPauseStatus(null); setPicking(null); setPickSide(null); setNotice(''); });
+    client.on('player:queued', (status) => { setQueued(status); if (!status) setMenu('mode'); });
+    // Chaos: the side we picked was taken first, so pick a class on the other side
+    client.on('player:sideTaken', (message, side) => { setPickSide(side); setMenu('class'); setNotice(message); });
+    client.on('game:picking', (status) => { setPicking(status.picking ? status : null); if (!status.picking) setPickSide(null); });
     client.on('game:readyStatus', setReadyStatus);
     client.on('game:pauseStatus', setPauseStatus);
     client.on('game:state', (value) => { setState(value); setReceivedAt(performance.now()); setElapsed(0); });
     client.on('game:ended', setResult);
     client.on('game:rematchStatus', setVotes);
     client.on('game:rejected', setNotice);
-    client.on('game:opponentLeft', (message) => { setInfo(null); setState(null); setResult(null); setVotes({}); setReadyStatus(null); setPauseStatus(null); setNotice(`${message} Waiting for a new rival.`); });
+    client.on('game:opponentLeft', (message) => { setInfo(null); setState(null); setResult(null); setVotes({}); setReadyStatus(null); setPauseStatus(null); setPicking(null); setPickSide(null); setNotice(`${message} Waiting for a new rival.`); });
     client.on('server:reset', (message) => { setInfo(null); setState(null); setResult(null); setVotes({}); setReadyStatus(null); setPauseStatus(null); setNotice(message); });
     return () => { client.removeAllListeners(); client.disconnect(); socket.current = null; };
   }, []);
@@ -168,6 +246,12 @@ export default function App() {
   const remaining = paused ? pauseStatus?.remainingMs ?? 0
     : shownState?.turnDeadline == null ? 0 : Math.max(0, shownState.turnDeadline - shownState.serverTime - (waitingReady ? 0 : elapsed));
   const seconds = Math.ceil(remaining / 1000);
+  const myStays = shownInfo && shownState?.staysLeft ? shownState.staysLeft[shownInfo.you.role] : 0;
+  const canStay = myTurn && myStays > 0 && remaining > 0 && !shownState?.chaos?.inVoid;
+  const blind = !!shownState?.chaos?.blind;
+  // Chaos: Q / E abilities and aiming on the board
+  const chaosControls = useChaosControls({ state: shownState, info: shownInfo, myTurn: myTurn && remaining > 0,
+    send: (ability: AbilityRequest) => socket.current?.emit('game:ability', ability) });
 
   function join(event: React.FormEvent) {
     event.preventDefault();
@@ -177,6 +261,19 @@ export default function App() {
     setNotice('');
     setKickedReason(null);
     socket.current.emit('player:join', value);
+  }
+  // Classic, or Chaos with a side and class: join the queue for that mode
+  function queueFor(mode: 'classic' | 'chaos', side?: Role, cls?: ClassId) {
+    setNotice('');
+    socket.current?.emit('player:queue', mode === 'classic' ? { mode } : { mode, side, cls });
+  }
+  function leaveQueue() {
+    socket.current?.emit('player:leaveQueue');
+    setMenu(queued?.mode === 'chaos' ? 'class' : 'mode');
+    if (queued?.side) setPickSide(queued.side);
+  }
+  function stayPut() {
+    if (canStay) socket.current?.emit('game:stay');
   }
   function answerPause(accept: boolean) {
     socket.current?.emit('game:pauseAnswer', accept);
@@ -197,12 +294,15 @@ export default function App() {
   useEffect(() => {
     function onKey(event: KeyboardEvent) {
       if (event.target instanceof HTMLInputElement) return;
+      if (!showHelp && chaosControls.onKey(event)) { event.preventDefault(); return; }
       const emote = myEmotes[Number(event.key) - 1];
       if (emote) { event.preventDefault(); social.sendEmote(emote); return; }
       if (event.key === 'Enter' && inChat && social.features.chat && !(event.target instanceof HTMLButtonElement)) { event.preventDefault(); openChat(); return; }
+      if (event.key === 'Escape' && showHelp) { setShowHelp(false); return; }
       if (event.key === 'Escape' && social.chatOpen) { social.setChatOpen(false); return; }
-      const lookup: Record<string, Direction> = { ArrowUp: 'up', ArrowLeft: 'left', ArrowDown: 'down', ArrowRight: 'right', w: 'up', a: 'left', s: 'down', d: 'right' };
-      const direction = lookup[event.key.length === 1 ? event.key.toLowerCase() : event.key];
+      if (event.key === '?' && info?.you.cls) { event.preventDefault(); setShowHelp((open) => !open); return; }
+      if ((event.key === 'x' || event.key === 'X') && info) { event.preventDefault(); stayPut(); return; }
+      const direction = KEY_DIRECTION[event.key.length === 1 ? event.key.toLowerCase() : event.key];
       if (direction) { event.preventDefault(); move(direction); }
     }
     window.addEventListener('keydown', onKey);
@@ -212,12 +312,27 @@ export default function App() {
   // Spectator view: the watched game's board, players and clock
   const watchedRemaining = watching?.state?.turnDeadline == null || !watching.state || watching.status !== 'playing' ? 0
     : Math.max(0, watching.state.turnDeadline - watching.state.serverTime - (performance.now() - social.watchingAt));
-  const moveControls = <><div className="panel-heading"><span className="eyebrow accent">MOVE</span><span>WASD / ARROWS</span></div><div className="control-grid">{(['up', 'left', 'down', 'right'] as Direction[]).map((direction) => <button key={direction} className={`direction direction-${direction}`} aria-label={`Move ${direction}`} disabled={!legal.includes(direction) || remaining <= 0} onClick={() => move(direction)}><strong>{directions[direction].label}</strong><small>{directions[direction].key}</small></button>)}</div></>;
+  const moveControls = <><div className="panel-heading"><span className="eyebrow accent">MOVE</span><span>WASD / ARROWS · X STAY</span></div><div className="control-grid">{(['up', 'left', 'down', 'right'] as Direction[]).map((direction) => <button key={direction} className={`direction direction-${direction}`} aria-label={`Move ${direction}`} disabled={!legal.includes(direction) || remaining <= 0} onClick={() => move(direction)}><strong>{blind ? '?' : directions[direction].label}</strong><small>{directions[direction].key}</small></button>)}</div>
+    {shownState?.status === 'active' && chaosControls.panel}
+    {shownState?.status === 'active' && <div className="stay-row">
+      <button className={`stay-button${myTurn && myStays === 0 && !shownState.chaos?.inVoid ? '' : ' idle'}`} disabled={!canStay} onClick={stayPut} title="Keep your spot this turn. At most 2 in a row.">{myTurn && myStays === 0 && !shownState.chaos?.inVoid ? 'MUST MOVE' : 'X STAY'}</button>
+      {info?.you.cls && <button className="small-button help-button" onClick={() => setShowHelp(true)} title="How your class works (?)">?</button>}
+      <span className="stays-left">STAYS LEFT {Array.from({ length: MAX_STAYS }, (_, i) => <s key={i} className={i < myStays ? '' : 'used'} />)}</span>
+    </div>}
+    {info?.you.cls && <ControlsBar cls={info.you.cls} />}</>;
   const me = info?.you.nickname ?? (pendingName.current || nickname.trim());
+  // Chaos turns the whole page purple: from picking Chaos in the menu, through the queue and the game
+  const chaosTheme = info ? info.mode === 'chaos' : watching ? watching.mode === 'chaos'
+    : queued ? queued.mode === 'chaos' : joined && menu !== 'mode';
+  const modeLabel = chaosTheme ? 'CHAOS · ABILITIES' : 'CLASSIC';
+  const menus = menu === 'mode' ? <ModePicker onPick={(mode) => mode === 'classic' ? queueFor('classic') : setMenu('chaos')} />
+    : menu === 'chaos' ? <ChaosModePicker onPick={() => setMenu('side')} onBack={() => setMenu('mode')} />
+    : menu === 'side' || pickSide === null ? <SidePicker onPick={(side) => { setPickSide(side); setMenu('class'); }} onBack={() => setMenu('chaos')} />
+    : <ClassPicker key={pickSide} side={pickSide} initial={queued?.cls} onLock={(cls) => queueFor('chaos', pickSide, cls)} onBack={() => setMenu('side')} />;
 
-  return <div className="app-shell" onPointerDown={unlockAudio}>
+  return <div className={`app-shell${chaosTheme ? ' theme-chaos' : ''}`} onPointerDown={unlockAudio}>
     <header className="topbar">
-      <div className="brand"><span className="brand-mark">✦</span><div><strong>ESCAPE<span>PLAN</span></strong><small>CLASSIC</small></div></div>
+      <div className="brand"><span className="brand-mark">✦</span><div><strong>ESCAPE<span>PLAN</span></strong><small>{modeLabel}</small></div></div>
       <div className="topbar-actions">
         {inChat && social.features.spectate && <EyePill count={social.spectators.count} names={social.spectators.names} />}
         {inChat && social.features.emotes && <button className="small-button sound-button" aria-pressed={!soundOff} onClick={() => { setMuted(!soundOff); setSoundOff(!soundOff); }}>{soundOff ? '🔇 SOUND OFF' : '🔊 SOUND ON'}</button>}
@@ -239,13 +354,14 @@ export default function App() {
           <form onSubmit={join}><label htmlFor="nickname">NICKNAME</label><input id="nickname" maxLength={20} value={nickname} onChange={(event) => setNickname(event.target.value)} placeholder="Your name" autoComplete="nickname" /><button className="primary-button" disabled={!connected || !nickname.trim()}>JOIN <span>↗</span></button></form>
         </div>
       </section> : (!shownState || !shownInfo) && watching?.state ? <div className="game-layout">
-        <section className="game-panel panel"><div className="game-topline"><span className="eyebrow accent">WATCHING · GAME {watching.id}</span><span className="match-badge">{watching.status === 'finished' ? 'FINISHED' : watching.status === 'ready' ? 'GET READY' : watching.status === 'paused' ? 'PAUSED' : `${watching.turn ?? ''}'S TURN`}</span></div>
-          <div className="board-area"><BoardStage state={watching.state} bubbles={social.bubbles} board={<Board state={watching.state} info={{ you: { nickname: '', role: 'warden' }, opponent: { nickname: '', role: 'prisoner' } }} legal={[]} />} /></div>
+        <section className="game-panel panel"><div className="game-topline"><span className="eyebrow accent">WATCHING · GAME {watching.id}</span><span className="match-badge">{watching.status === 'finished' ? 'FINISHED' : watching.status === 'ready' ? 'GET READY' : watching.status === 'paused' ? 'PAUSED' : watching.status === 'picking' ? 'PICKING CLASSES' : `${watching.turn ?? ''}'S TURN`}</span></div>
+          <div className="board-area"><BoardStage state={watching.state} bubbles={social.bubbles} board={<Board state={watching.state} info={{ mode: watching.mode, you: { nickname: '', role: 'warden', cls: null }, opponent: { nickname: '', role: 'prisoner', cls: null } }} legal={[]} />} /></div>
+          {watching.state.chaos && <ChaosLog state={watching.state} you={null} rival={null} />}
           <div className="board-footer"><span><i className="legend-dot wall" /> WALL</span><span><i className="legend-dot tunnel" /> TUNNEL</span></div>
           {myEmotes.length > 0 && <EmoteStrip label="CROWD" emotes={myEmotes} readyAt={social.emoteReadyAt} onSend={social.sendEmote} />}
         </section>
         <aside className="sidebar"><div className="panel match-panel"><div className="panel-heading"><span className="eyebrow accent">WATCHING</span><span>{watching.spectators.length} SPECTATOR{watching.spectators.length === 1 ? '' : 'S'}</span></div>
-            {watching.players.map((p, i) => <div key={p.nickname}>{i > 0 && <div className="versus">VS</div>}<PlayerCard name={p.nickname} role={p.role ?? 'prisoner'} score={p.score} active={watching.turn === p.nickname} self={false} label={watching.turn === p.nickname ? '▶ TURN' : 'PLAYER'} /></div>)}</div>
+            {watching.players.map((p, i) => <div key={p.nickname}>{i > 0 && <div className="versus">VS</div>}<PlayerCard name={p.nickname} role={p.role ?? 'prisoner'} cls={p.cls} score={p.score} active={watching.turn === p.nickname} self={false} label={watching.turn === p.nickname ? '▶ TURN' : 'PLAYER'} /></div>)}</div>
           {watching.status === 'playing' ? <div className="panel turn-panel"><div className="turn-label"><span className="eyebrow accent">TIME LEFT</span></div><div className={`timer${watchedRemaining <= 3000 ? ' timer-low' : ''}`}><strong>{String(Math.ceil(watchedRemaining / 1000)).padStart(2, '0')}</strong><span>SEC</span></div><div className="timer-track"><span style={{ width: `${Math.min(100, watchedRemaining / 100)}%` }} /></div></div>
             : <div className="panel turn-panel"><div className="turn-label"><span className="eyebrow accent">{watching.status === 'finished' ? 'MATCH OVER' : watching.status === 'paused' ? 'PAUSED' : 'READY CHECK'}</span></div><p>{watching.status === 'finished' && watching.winner ? `${watching.winner} won. Waiting for a rematch.` : watching.status === 'paused' ? 'Both players agreed to pause.' : 'Waiting for both players to press Ready.'}</p></div>}
           <ChatPanel messages={social.messages} spoken={social.spoken} me={me} chatEnabled={social.features.chat} canSpeak={false}
@@ -255,15 +371,17 @@ export default function App() {
               <button className="small-button" onClick={social.leave}>LEAVE ✕</button>
               <KeyList emoteCount={myEmotes.length} chat={social.features.chat} /></>} />
         </aside>
-      </div> : !shownState || !shownInfo ? <div className="lobby-stack"><section className="lobby-panel panel">
-        <div className="lobby-title"><h2>{welcome || 'Welcome.'}</h2><p>Waiting for another player.</p></div>
-        <div className="lobby-list"><div className="list-heading"><span>YOUR MATCH</span><strong>1/2</strong></div><div className="lobby-player"><span className="slot">01</span><img src="/assets/prisoner.svg" alt="" /><strong>{pendingName.current || nickname.trim()} (you)</strong></div><div className="empty-slot"><span className="slot">02</span><span className="loading-block" />Waiting for another player...</div></div>
+      </div> : (!shownState || !shownInfo) && !queued ? menus
+      : !shownState || !shownInfo ? <div className="lobby-stack"><section className="lobby-panel panel">
+        <div className="lobby-title"><span className="eyebrow accent">{queued?.mode === 'chaos' ? 'CHAOS · ABILITIES' : 'CLASSIC'} · LOBBY</span><h2>{welcome || 'Welcome.'}</h2><p>{queued?.mode === 'chaos' ? `Waiting for a ${queued.side === 'warden' ? 'prisoner' : 'warden'} to join.` : 'Waiting for another player.'}</p><button className="small-button ghost" onClick={leaveQueue}>◂ CHANGE {queued?.mode === 'chaos' ? 'CLASS' : 'MODE'}</button></div>
+        <div className="lobby-list"><div className="list-heading"><span>YOUR MATCH</span><strong>1/2</strong></div><div className="lobby-player"><span className="slot">01</span>{queued?.cls ? <PixelSprite name={CLASS_INFO[queued.cls].sprite} size={36} /> : <img src="/assets/prisoner.svg" alt="" />}<strong>{pendingName.current || nickname.trim()} (you){queued?.cls ? ` · ${CLASS_INFO[queued.cls].name}` : ''}</strong></div><div className="empty-slot"><span className="slot">02</span><span className="loading-block" />Waiting for another player...</div></div>
       </section>
       {social.features.spectate && <SpectateList games={social.liveGames} onWatch={social.watch} />}
       </div> : <div className="game-layout">
-        <section className="game-panel panel"><div className="game-topline"><span className="eyebrow accent">CLASSIC · {shownState.board.width} × {shownState.board.height}</span><span className="match-badge">{shownState.status === 'finished' ? 'FINISHED' : waitingReady ? 'GET READY' : paused ? 'PAUSED' : myTurn ? 'YOUR TURN' : `${shownState.turnNickname}'S TURN`}</span></div><div className="board-area"><BoardStage state={shownState} bubbles={social.bubbles} board={<Board state={shownState} info={shownInfo} legal={legal} />} /></div><div className="board-footer"><span><i className="legend-dot wall" /> WALL</span><span><i className="legend-dot tunnel" /> TUNNEL</span><span><i className="legend-dot target" /> MOVE</span></div>
+        <section className="game-panel panel"><div className="game-topline"><span className="eyebrow accent">{modeLabel} · {shownState.board.width} × {shownState.board.height}</span><span className="match-badge">{shownState.status === 'finished' ? 'FINISHED' : waitingReady ? 'GET READY' : paused ? 'PAUSED' : myTurn ? 'YOUR TURN' : `${shownState.turnNickname}'S TURN`}</span></div><div className="board-area"><BoardStage state={shownState} bubbles={social.bubbles} board={<Board state={shownState} info={shownInfo} legal={chaosControls.targeting ? [] : legal} chaos={chaosControls.board} />} /></div><div className="board-footer"><span><i className="legend-dot wall" /> WALL</span><span><i className="legend-dot tunnel" /> TUNNEL</span><span><i className="legend-dot target" /> MOVE</span></div>
+          {shownState.chaos && <ChaosLog state={shownState} you={shownInfo.you.role} rival={shownInfo.opponent.cls} />}
           {myEmotes.length > 0 && <EmoteStrip emotes={myEmotes} readyAt={social.emoteReadyAt} onSend={social.sendEmote} />}</section>
-        <aside className="sidebar"><div className="panel match-panel"><div className="panel-heading"><span className="eyebrow accent">PLAYERS</span></div><PlayerCard name={shownInfo.you.nickname} role={shownInfo.you.role} score={shownState.scores[shownInfo.you.nickname] ?? 0} active={myTurn} self /><div className="versus">VS</div><PlayerCard name={shownInfo.opponent.nickname} role={shownInfo.opponent.role} score={shownState.scores[shownInfo.opponent.nickname] ?? 0} active={!myTurn && shownState.status === 'active'} self={false} /></div>
+        <aside className="sidebar"><div className="panel match-panel"><div className="panel-heading"><span className="eyebrow accent">PLAYERS</span></div><PlayerCard name={shownInfo.you.nickname} role={shownInfo.you.role} cls={shownInfo.you.cls} score={shownState.scores[shownInfo.you.nickname] ?? 0} active={myTurn} self /><div className="versus">VS</div><PlayerCard name={shownInfo.opponent.nickname} role={shownInfo.opponent.role} cls={shownInfo.opponent.cls} score={shownState.scores[shownInfo.opponent.nickname] ?? 0} active={!myTurn && shownState.status === 'active'} self={false} /></div>
           {shownState.status === 'active' ? <div className="panel turn-panel" title="At zero, the server makes a random legal move."><div className="turn-label"><span className="eyebrow accent">TIME LEFT</span></div><div className={`timer${seconds <= 3 ? ' timer-low' : ''}`}><strong>{String(seconds).padStart(2, '0')}</strong><span>SEC</span></div><div className="timer-track"><span style={{ width: `${Math.min(100, remaining / 100)}%` }} /></div></div>
             : <div className="panel result-panel"><h2>{shownResult?.result === 'Win' ? 'You win' : shownResult?.result === 'Lost' ? 'You lose' : 'Match over'}</h2><p>{shownResult ? shownResult.reason === 'escape' ? `${shownResult.winner} escaped.` : `${shownResult.winner} caught the prisoner.` : 'Loading result…'}</p><button className="primary-button" disabled={!shownResult || !!shownVotes[shownInfo.you.nickname] } onClick={() => socket.current?.emit('game:rematchVote', true)}>{shownVotes[shownInfo.you.nickname] ? 'WAITING FOR PLAYER' : 'REMATCH'} <span>↗</span></button></div>}
           {social.features.chat || social.features.emotes
@@ -278,9 +396,20 @@ export default function App() {
       <div className="ready-card panel">
         <span className="eyebrow accent">MATCH FOUND</span>
         <h2 id="ready-title">Get ready</h2>
-        <p>You are the <strong>{info.you.role.toUpperCase()}</strong> vs {info.opponent.nickname}. {info.you.role === 'warden' ? 'Catch the prisoner. You move first.' : 'Reach the tunnel before you are caught.'}</p>
+        <p>You are the <strong>{info.you.cls ? `${CLASS_INFO[info.you.cls].name.toUpperCase()} (${info.you.role.toUpperCase()})` : info.you.role.toUpperCase()}</strong> vs {info.opponent.nickname}{info.opponent.cls ? ` as ${CLASS_INFO[info.opponent.cls].name}` : ''}. {info.you.role === 'warden' ? 'Catch the prisoner. You move first.' : 'Reach the tunnel before you are caught.'}</p>
         <StatusList names={[info.you.nickname, info.opponent.nickname]} ready={readyStatus.ready} you={info.you.nickname} />
         <button className="primary-button" autoFocus disabled={iAmReady} onClick={() => socket.current?.emit('game:ready')}>{iAmReady ? 'WAITING FOR RIVAL' : 'READY'} <span>↗</span></button>
+      </div>
+    </div>}
+    {picking && info && <div className="ready-overlay" role="dialog" aria-modal="true" aria-label="Pick your side and class">
+      <RematchPicker picked={picking.picked} taken={picking.taken} me={info.you.nickname} side={pickSide}
+        onSide={setPickSide} onBack={() => setPickSide(null)}
+        onLock={(cls) => pickSide && socket.current?.emit('game:pick', { side: pickSide, cls })} />
+    </div>}
+    {showHelp && info?.you.cls && <div className="ready-overlay" role="dialog" aria-modal="true" aria-label="How your class works" onClick={() => setShowHelp(false)}>
+      <div className="keybind-card panel" onClick={(event) => event.stopPropagation()}>
+        <div className="menu-heading"><div><span className="eyebrow accent">YOUR CLASS · ? TO CLOSE</span><h2>How it works</h2></div><button className="small-button ghost" onClick={() => setShowHelp(false)}>CLOSE ✕</button></div>
+        <ClassDetails cls={info.you.cls} />
       </div>
     </div>}
     {paused && info && pauseStatus && <div className="ready-overlay" role="dialog" aria-modal="true" aria-labelledby="pause-title">

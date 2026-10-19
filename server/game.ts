@@ -8,25 +8,32 @@ import { sendDashboard } from './dashboard.js';
 import {
   createSession,
   move,
+  nextMatch,
   resetSession,
   resolveTimeout,
   restartTurn,
   startMatch,
+  stay,
+  useAbility,
   voteRematch,
+  type ClassId,
   type ErrorCode,
   type PlayerId,
+  type Role,
   type Session,
 } from '../packages/game-core/src/index.js';
-import { Direction, PauseAnswer, RematchVote } from './schema.js';
-import { players } from './state.js';
-import { toGameState, toMatchInfo, toMatchResult, toRematchVotes, type Names } from './view.js';
-import { DEFAULT_MODE, type ModeName } from './modes.js';
-import { endSpectating, sendSpectatorState, spectatorsOf, startGameSocial, wasKicked } from './social.js';
+import { AbilityRequest, ClassPick, Direction, PauseAnswer, RematchVote } from './schema.js';
+import { players, queue } from './state.js';
+import { toGameState, toMatchInfo, toMatchResult, toRematchVotes, type GameKind, type Names, type Viewer } from './view.js';
+import { BOARDS, type ModeName } from './modes.js';
+import { addFeed, endSpectating, sendSpectatorState, spectatorsOf, startGameSocial, wasKicked } from './social.js';
 
 // One running game between two players
 export interface Game {
   id: string;
-  mode: ModeName; // which features this game has (chat, emotes, spectating, voice)
+  mode: ModeName; // Classic or Chaos; also decides chat, emotes, spectating, voice
+  classes: Record<Role, ClassId> | null; // Chaos: the class on each side; null in Classic
+  picking: Map<PlayerId, { side: Role; cls: ClassId }> | null; // Chaos rematch: side/class picks so far
   session: Session; // replaced after every successful core call
   names: Names; // socket id -> nickname, captured when the game starts
   timer: NodeJS.Timeout | null; // turn timer
@@ -74,14 +81,28 @@ const REASONS: Record<ErrorCode, string> = {
   NO_LEGAL_MOVE: 'No legal move',
   NO_FINISHED_MATCH: 'The match has not finished',
   INVALID_VOTE: 'Vote must be true or false',
+  NO_STAYS_LEFT: 'You stayed twice in a row. You have to move this turn',
+  NO_ABILITY: 'Your class has no such ability',
+  ABILITY_NOT_READY: 'Your ability is not ready yet',
+  ILLEGAL_TARGET: 'You cannot use your ability there',
+  IN_VOID: 'You are in the Void. Win the challenge to get out',
+};
+
+const kindOf = (g: Game): GameKind => ({ mode: g.mode, classes: g.classes });
+const roleIn = (g: Game, id: PlayerId): Role | null => {
+  const m = g.session.match;
+  return m ? (m.roles.warden === id ? 'warden' : 'prisoner') : null;
 };
 
 // ---- Broadcasting -----------------------------------------------------------
 
-// Send the current GameState to both players
+// Send the current GameState to both players, each with what their side may see
 export function broadcastState(io: GameServer, g: Game): void {
-  const state = toGameState(g.session, g.names, Date.now());
-  if (state) io.to(channel(g)).emit('game:state', state);
+  const now = Date.now();
+  for (const id of g.session.players) {
+    const state = toGameState(g.session, g.names, now, kindOf(g), roleIn(g, id) ?? 'public');
+    if (state) io.to(id).emit('game:state', state);
+  }
   sendSpectatorState(io, g); // spectators see the board too
   sendDashboard(io); // keep the admin page's Games list live
 }
@@ -90,31 +111,31 @@ export function broadcastState(io: GameServer, g: Game): void {
 
 // Every running game with its two players, for the admin page
 export function getGames(): GameSummary[] {
-  return [...games.values()].map(summarize);
+  return [...games.values()].map((g) => summarize(g));
 }
 
-// One game as the admin page and spectators see it
-export function summarize(g: Game): GameSummary {
+// One game as the admin page ('all') and spectators ('public') see it
+export function summarize(g: Game, viewer: Viewer = 'all'): GameSummary {
   const m = g.session.match;
   const status: GameSummary['status'] =
-    g.ready !== null ? 'ready' : g.paused !== null ? 'paused' : m?.status === 'finished' ? 'finished' : 'playing';
+    g.ready !== null ? 'ready' : g.picking !== null ? 'picking' : g.paused !== null ? 'paused' : m?.status === 'finished' ? 'finished' : 'playing';
   return {
     id: g.id,
-    players: g.session.players.map((id) => ({
-      nickname: g.names[id] ?? id,
-      role: m ? (m.roles.warden === id ? 'warden' : 'prisoner') : null,
-      score: g.session.scores[id] ?? 0,
-    })),
+    mode: g.mode,
+    players: g.session.players.map((id) => {
+      const role = roleIn(g, id);
+      return { nickname: g.names[id] ?? id, role, cls: role && g.classes ? g.classes[role] : null, score: g.session.scores[id] ?? 0 };
+    }),
     status,
     turn: status === 'playing' && m?.status === 'active' ? g.names[m.turn.playerId] ?? null : null,
     ready: g.ready ? [...g.ready].map((id) => g.names[id] ?? id) : [],
     winner: m?.status === 'finished' ? g.names[m.outcome.winner] ?? null : null,
-    state: toGameState(g.session, g.names, Date.now()),
+    state: toGameState(g.session, g.names, Date.now(), kindOf(g), viewer),
     spectators: spectatorsOf(g.id),
   };
 }
 
-// Joined players who are not in a game yet (waiting for an opponent)
+// Joined players who are not in a game yet (picking a mode or waiting for an opponent)
 export function getWaiting(): string[] {
   return [...players].filter(([id]) => !gameOf.has(id)).map(([, name]) => name);
 }
@@ -140,7 +161,7 @@ function onTimeout(io: GameServer, g: Game): void {
   g.timer = null;
   if (games.get(g.id) !== g) return; // game was destroyed meanwhile
 
-  // The core plays a random legal move for the player who ran out of time
+  // The core keeps the player in place (uses a stay), or plays a random legal move when no stays are left
   const result = resolveTimeout(g.session, Date.now(), rng);
   if (!result.ok) {
     if (result.error.code === 'TIMEOUT_NOT_DUE') startTimer(io, g); // fired a hair early
@@ -156,6 +177,7 @@ function onTimeout(io: GameServer, g: Game): void {
 // After any change to the board: send state, then either end the match or
 // start the next player's timer.
 function afterTurn(io: GameServer, g: Game): void {
+  feedChaos(io, g);
   broadcastState(io, g);
   if (g.session.match?.status === 'finished') endMatch(io, g);
   else startTimer(io, g);
@@ -196,7 +218,7 @@ function sendPauseStatus(io: GameServer, g: Game): void {
 // needReady = true: show the board but keep the clock stopped until both press Ready.
 function beginMatch(io: GameServer, g: Game, needReady = false): void {
   for (const id of g.session.players) {
-    const info = toMatchInfo(g.session, g.names, id);
+    const info = toMatchInfo(g.session, g.names, id, kindOf(g));
     if (info) io.to(id).emit('game:started', info);
   }
   g.pauseRequest = null; // a new match never starts paused
@@ -222,50 +244,140 @@ function destroyGame(io: GameServer, g: Game): void {
   sendDashboard(io);
 }
 
-// Pair up joined players who aren't in a game yet.
-// Called by lobby.ts after someone joins, and below after a game ends.
+// Queued players who are free to play right now, oldest first
+function waitingPlayers(io: GameServer) {
+  return [...queue].filter(([id]) => !gameOf.has(id) && players.has(id) && io.sockets.sockets.has(id));
+}
+
+// Chaos: is someone already waiting on this side (and nobody on the other)?
+// Then the newcomer has to switch: the first to pick a side keeps it.
+export function chaosSideTaken(io: GameServer, socketId: PlayerId, side: Role): boolean {
+  const chaos = waitingPlayers(io).filter(([id, p]) => id !== socketId && p.mode === 'chaos');
+  return chaos.some(([, p]) => p.mode === 'chaos' && p.side === side)
+    && !chaos.some(([, p]) => p.mode === 'chaos' && p.side !== side);
+}
+
+// Pair up queued players who aren't in a game yet: two Classic players, or a
+// Chaos prisoner with a Chaos warden. Called after someone queues and after a game ends.
 export function matchmake(io: GameServer): void {
-  const waiting = [...players].filter(([id]) => !gameOf.has(id) && io.sockets.sockets.has(id));
-
   for (;;) {
-    const [a, b] = waiting.splice(0, 2);
-    if (!a || !b) return;
-
-    const created = createSession([a[0], b[0]]);
-    const started = created.ok ? startMatch(created.value, Date.now(), rng) : created;
-    if (!started.ok) {
-      console.error(`Could not start a match: ${started.error.code}`);
+    const waiting = waitingPlayers(io);
+    const classic = waiting.filter(([, p]) => p.mode === 'classic');
+    if (classic.length >= 2) {
+      startGame(io, classic[0]![0], classic[1]![0], 'classic', null);
       continue;
     }
-
-    const g: Game = {
-      id: String(nextGameId++),
-      mode: DEFAULT_MODE,
-      session: started.value,
-      names: { [a[0]]: a[1], [b[0]]: b[1] },
-      timer: null,
-      ready: null,
-      pauseRequest: null,
-      paused: null,
-    };
-    games.set(g.id, g);
-    for (const id of g.session.players) {
-      gameOf.set(id, g);
-      io.sockets.sockets.get(id)?.join(channel(g));
+    const prisoner = waiting.find(([, p]) => p.mode === 'chaos' && p.side === 'prisoner');
+    const warden = waiting.find(([, p]) => p.mode === 'chaos' && p.side === 'warden');
+    if (prisoner?.[1].mode === 'chaos' && warden?.[1].mode === 'chaos') {
+      startGame(io, warden[0], prisoner[0], 'chaos', { warden: warden[1].cls, prisoner: prisoner[1].cls });
+      continue;
     }
-    startGameSocial(io, g); // stops spectating, sends chat/emote features
-    beginMatch(io, g, true); // new pair: wait for both to press Ready
+    return;
   }
+}
+
+// In Chaos `a` plays warden; in Classic the core picks the warden at random
+function startGame(io: GameServer, a: PlayerId, b: PlayerId, mode: ModeName, classes: Record<Role, ClassId> | null): void {
+  const created = createSession([a, b]);
+  const started = created.ok ? startMatch(created.value, Date.now(), rng, BOARDS[mode], mode === 'chaos' ? a : undefined, classes ?? undefined) : created;
+  if (!started.ok) {
+    console.error(`Could not start a match: ${started.error.code}`);
+    for (const id of [a, b]) { // don't retry the same pair forever: back to the mode menu
+      queue.delete(id);
+      io.to(id).emit('player:queued', null);
+      io.to(id).emit('game:rejected', 'Could not start a match. Pick a mode again.');
+    }
+    return;
+  }
+
+  const g: Game = {
+    id: String(nextGameId++),
+    mode,
+    classes,
+    picking: null,
+    session: started.value,
+    names: { [a]: players.get(a) ?? a, [b]: players.get(b) ?? b },
+    timer: null,
+    ready: null,
+    pauseRequest: null,
+    paused: null,
+  };
+  games.set(g.id, g);
+  for (const id of g.session.players) {
+    gameOf.set(id, g);
+    io.sockets.sockets.get(id)?.join(channel(g));
+  }
+  startGameSocial(io, g); // stops spectating, sends chat/emote features
+  feedPicks(io, g);
+  beginMatch(io, g, true); // new pair: wait for both to press Ready
+}
+
+// ---- Admin live feed: class picks, abilities and Void results ----------------
+
+const CLASS_NAMES: Record<ClassId, string> = {
+  allmight: 'All Might', naruto: 'Naruto', sukuna: 'Sukuna', afo: 'All For One', sasuke: 'Sasuke', gojo: 'Gojo',
+};
+
+function nameIn(g: Game, role: Role): string {
+  const id = g.session.players.find((p) => roleIn(g, p) === role);
+  return (id && g.names[id]) ?? role;
+}
+
+function feedPicks(io: GameServer, g: Game): void {
+  if (!g.classes) return;
+  const { prisoner, warden } = g.classes;
+  addFeed(io, g.id, `${nameIn(g, 'prisoner')} picked ${CLASS_NAMES[prisoner]} · ${nameIn(g, 'warden')} picked ${CLASS_NAMES[warden]}`, true);
+}
+
+// One line per ability or Void result from the turn that just happened
+function feedChaos(io: GameServer, g: Game): void {
+  const chaos = g.session.match?.chaos;
+  if (!chaos || !g.classes) return;
+  const who = (role: Role) => `${nameIn(g, role)} (${CLASS_NAMES[g.classes![role]]})`;
+  for (const e of chaos.events) {
+    const line = e.kind === 'smash' ? `${who(e.by)} used Smash Punch${e.hit ? ' and stunned their rival' : ' and missed'}`
+      : e.kind === 'clones' ? `${who(e.by)} used ${e.by === 'prisoner' ? `Shadow Clone ×${e.count}` : 'a stolen clone'}`
+      : e.kind === 'swap' ? `${who('prisoner')} swapped with a clone`
+      : e.kind === 'dismantle' ? `${who(e.by)} used Dismantle on a rock`
+      : e.kind === 'shrine' ? `${who(e.by)} used Malevolent Shrine`
+      : e.kind === 'steal' ? `${who('warden')} stole ${CLASS_NAMES[e.from]}'s power`
+      : e.kind === 'sharingan' ? `${who('warden')} used Sharingan`
+      : e.kind === 'void' ? `${who('warden')} used Infinite Void`
+      : e.kind === 'escape' ? `${nameIn(g, 'prisoner')} ${e.escaped ? 'escaped the Void' : 'was caught in the Void'}`
+      : e.kind === 'clonecatch' ? `${who('warden')}'s clone caught the prisoner`
+      : null;
+    if (line) addFeed(io, g.id, line, true);
+  }
+}
+
+// Chaos rematch: tell both players who has picked a side and class
+function sendPickingStatus(io: GameServer, g: Game): void {
+  const picks = g.picking ?? new Map<PlayerId, { side: Role; cls: ClassId }>();
+  const taken: Partial<Record<Role, string>> = {};
+  for (const [id, p] of picks) taken[p.side] = g.names[id] ?? id;
+  io.to(channel(g)).emit('game:picking', {
+    picking: g.picking !== null,
+    picked: [...picks.keys()].map((id) => g.names[id] ?? id),
+    taken,
+  });
+  sendDashboard(io);
 }
 
 // Admin "Reset" button: scores back to 0, timer cancelled, fresh match for every game
 export function resetGame(io: GameServer): void {
   for (const g of games.values()) {
     cancelTimer(g);
+    // Chaos games keep their sides and classes; Classic picks a new warden at random
+    const warden = g.mode === 'chaos' ? g.session.match?.roles.warden : undefined;
     g.session = resetSession(g.session); // scores 0, no match
+    if (g.picking !== null) {
+      g.picking = null;
+      sendPickingStatus(io, g);
+    }
     io.to(channel(g)).emit('server:reset', 'The server reset the game and scores.');
 
-    const restarted = startMatch(g.session, Date.now(), rng);
+    const restarted = startMatch(g.session, Date.now(), rng, BOARDS[g.mode], warden, g.classes ?? undefined);
     if (!restarted.ok) {
       console.error(`Could not restart game ${g.id}: ${restarted.error.code}`);
       continue;
@@ -394,13 +506,95 @@ export function registerGame(io: GameServer, socket: GameSocket): void {
       return;
     }
 
-    const result = move(g.session, socket.id, direction.data, Date.now());
+    const result = move(g.session, socket.id, direction.data, Date.now(), rng);
     if (!result.ok) {
       socket.emit('game:rejected', REASONS[result.error.code]); // timer keeps running
       return;
     }
     g.session = result.value;
     afterTurn(io, g); // the other player's 10 s starts now, or the match ends
+  });
+
+  socket.on('game:stay', () => {
+    const g = gameOf.get(socket.id);
+    if (!g) {
+      socket.emit('game:rejected', 'You are not in a match');
+      return;
+    }
+    if (g.ready !== null || g.paused !== null) {
+      socket.emit('game:rejected', g.ready !== null ? 'Both players must press Ready first' : 'The game is paused. Both players must press Resume');
+      return;
+    }
+    const result = stay(g.session, socket.id, Date.now(), rng);
+    if (!result.ok) {
+      socket.emit('game:rejected', REASONS[result.error.code]);
+      return;
+    }
+    g.session = result.value;
+    afterTurn(io, g);
+  });
+
+  // Chaos: use your class's ability. It takes your turn, like a move.
+  socket.on('game:ability', (raw) => {
+    const ability = AbilityRequest.safeParse(raw);
+    if (!ability.success) {
+      socket.emit('game:rejected', ability.error.issues[0]?.message ?? 'Unknown ability');
+      return;
+    }
+    const g = gameOf.get(socket.id);
+    if (!g) {
+      socket.emit('game:rejected', 'You are not in a match');
+      return;
+    }
+    if (g.ready !== null || g.paused !== null) {
+      socket.emit('game:rejected', g.ready !== null ? 'Both players must press Ready first' : 'The game is paused. Both players must press Resume');
+      return;
+    }
+    const result = useAbility(g.session, socket.id, ability.data, Date.now(), rng);
+    if (!result.ok) {
+      socket.emit('game:rejected', REASONS[result.error.code]);
+      return;
+    }
+    g.session = result.value;
+    afterTurn(io, g);
+  });
+
+  // Chaos rematch: pick a side and class again. The first to lock in a side keeps it.
+  socket.on('game:pick', (raw) => {
+    const pick = ClassPick.safeParse(raw);
+    if (!pick.success) {
+      socket.emit('game:rejected', pick.error.issues[0]?.message ?? 'Invalid pick');
+      return;
+    }
+    const g = gameOf.get(socket.id);
+    if (!g || g.picking === null) return;
+    const other = [...g.picking].find(([id]) => id !== socket.id);
+    if (other && other[1].side === pick.data.side) {
+      const side: Role = pick.data.side === 'warden' ? 'prisoner' : 'warden';
+      socket.emit('player:sideTaken', `${g.names[other[0]] ?? 'Your rival'} already took ${pick.data.side}. Pick a ${side} class.`, side);
+      return;
+    }
+    g.picking.set(socket.id, pick.data);
+    if (g.picking.size < g.session.players.length) {
+      sendPickingStatus(io, g);
+      return;
+    }
+
+    const picks = g.picking;
+    const wardenId = [...picks].find(([, p]) => p.side === 'warden')![0];
+    const classes = { warden: picks.get(wardenId)!.cls, prisoner: [...picks].find(([, p]) => p.side === 'prisoner')![1].cls };
+    const next = nextMatch(g.session, Date.now(), rng, wardenId, BOARDS[g.mode], classes);
+    if (!next.ok) {
+      socket.emit('game:rejected', REASONS[next.error.code]); // e.g. map generation failed: try again
+      return;
+    }
+    g.session = next.value;
+    g.classes = classes;
+    g.picking = null;
+    feedPicks(io, g);
+    for (const [id, p] of picks) queue.set(id, { mode: 'chaos', ...p }); // a later new opponent uses these picks
+    sendPickingStatus(io, g);
+    beginMatch(io, g);
   });
 
   socket.on('game:rematchVote', (raw) => {
@@ -415,16 +609,24 @@ export function registerGame(io: GameServer, socket: GameSocket): void {
       return;
     }
 
-    // Core starts a new match (previous winner = warden) once both accept
-    const result = voteRematch(g.session, socket.id, vote.data, Date.now(), rng);
+    // Classic: the core starts a new match (previous winner = warden) once both accept.
+    // Chaos: both accept -> both pick a side and class again first (game:pick).
+    const chaos = g.mode === 'chaos';
+    if (g.picking !== null) return; // already picking
+    const result = voteRematch(g.session, socket.id, vote.data, Date.now(), rng, !chaos);
     if (!result.ok) {
       socket.emit('game:rejected', REASONS[result.error.code]);
       return;
     }
     g.session = result.value;
 
-    if (g.session.match?.status === 'active') beginMatch(io, g);
-    else {
+    const m = g.session.match;
+    if (m?.status === 'active') beginMatch(io, g);
+    else if (chaos && m?.status === 'finished' && g.session.players.every((id) => m.rematchVotes[id] === true)) {
+      g.picking = new Map();
+      io.to(channel(g)).emit('game:rematchStatus', toRematchVotes(g.session, g.names));
+      sendPickingStatus(io, g);
+    } else {
       broadcastState(io, g);
       io.to(channel(g)).emit('game:rematchStatus', toRematchVotes(g.session, g.names));
     }

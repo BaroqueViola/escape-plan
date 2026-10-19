@@ -131,7 +131,7 @@ export function BoardStage({ board, state, bubbles }: { board: ReactNode; state:
 
 // ---- Spectating -------------------------------------------------------------------------
 
-const STATUS: Record<LiveGame['status'], string> = { ready: 'READY CHECK', playing: 'PLAYING', paused: 'PAUSED', finished: 'FINISHED' };
+const STATUS: Record<LiveGame['status'], string> = { ready: 'READY CHECK', picking: 'PICKING CLASSES', playing: 'PLAYING', paused: 'PAUSED', finished: 'FINISHED' };
 
 export function SpectateList({ games, onWatch }: { games: LiveGame[]; onWatch: (id: string) => void }) {
   return <section className="panel spectate-panel">
@@ -139,7 +139,7 @@ export function SpectateList({ games, onWatch }: { games: LiveGame[]; onWatch: (
     <p>You keep your place in the queue while you watch.</p>
     {games.length === 0 ? <div className="empty-slot">No games running yet.</div> : <div className="live-list">
       {games.map((g) => <div key={g.id} className="live-game">
-        <strong>GAME {g.id}</strong>
+        <strong>GAME {g.id}{g.mode === 'chaos' ? ' · CHAOS' : ''}</strong>
         <span className="live-players">{g.players.map((p) => `${p.nickname}${p.role ? ` (${p.role})` : ''}`).join(' vs ')}</span>
         <span className="live-status">{STATUS[g.status]}</span>
         <span className="eye-pill small"><span className="emo">👁</span> {g.spectators}</span>
