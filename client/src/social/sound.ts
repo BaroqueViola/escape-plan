@@ -69,3 +69,32 @@ export function playClip(clip: string | null, fallback?: () => void): void {
   audio.addEventListener('error', fail, { once: true });
   audio.play().catch(fail);
 }
+
+// "Domain Expansion. Infinite Void." when Gojo opens the Void. The server makes
+// the line once at startup; without it, a deep hit and a rising shimmer play.
+export function playDomainLine(): void {
+  playClip('line/domain', playDomainEffect);
+}
+
+function playDomainEffect(): void {
+  if (muted) return;
+  unlockAudio();
+  if (!ctx) return;
+  const t = ctx.currentTime;
+  const tone = (type: OscillatorType, from: number, to: number, start: number, length: number, volume: number) => {
+    const osc = ctx!.createOscillator();
+    const gain = ctx!.createGain();
+    osc.type = type;
+    osc.frequency.setValueAtTime(from, t + start);
+    osc.frequency.exponentialRampToValueAtTime(to, t + start + length);
+    gain.gain.setValueAtTime(0.0001, t + start);
+    gain.gain.exponentialRampToValueAtTime(volume, t + start + 0.02);
+    gain.gain.exponentialRampToValueAtTime(0.0001, t + start + length);
+    osc.connect(gain).connect(ctx!.destination);
+    osc.start(t + start);
+    osc.stop(t + start + length);
+  };
+  tone('sine', 110, 40, 0, 0.7, 0.25); // the hit
+  tone('triangle', 330, 1320, 0.1, 1.1, 0.05); // the shimmer
+  tone('triangle', 495, 1980, 0.18, 1.0, 0.035);
+}

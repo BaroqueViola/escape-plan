@@ -3,6 +3,7 @@
 
 import { z } from 'zod';
 import { CROWD_EMOTES, PRISONER_EMOTES, WARDEN_EMOTES } from './events.js';
+import { CLASSES, sideOf, type ClassId } from '../packages/game-core/src/index.js';
 
 export const Nickname = z
   .string({ error: 'Nickname must be text' })
@@ -23,6 +24,36 @@ export const Direction = z.enum(['up', 'down', 'left', 'right'], {
  
 export type Direction = z.infer<typeof Direction>;
  
+// Chaos ability for game:ability (the core checks whether it is allowed)
+const Spot = z.object({ x: z.number().int().min(0).max(50), y: z.number().int().min(0).max(50) });
+export const AbilityRequest = z.discriminatedUnion('kind', [
+  z.object({ kind: z.literal('smash'), direction: Direction }),
+  z.object({ kind: z.literal('clones'), clones: z.array(Spot.extend({ direction: Direction })).min(1).max(3) }),
+  Spot.extend({ kind: z.literal('swap') }),
+  z.object({ kind: z.literal('dismantle'), direction: Direction }),
+  z.object({ kind: z.literal('shrine') }),
+  z.object({ kind: z.literal('steal') }),
+  z.object({ kind: z.literal('sharingan') }),
+  z.object({ kind: z.literal('void') }),
+  z.object({ kind: z.literal('escape'), hits: z.array(z.boolean()).length(3) }),
+], { error: 'Unknown ability' });
+
+// Chaos side and class. The class must belong to the side.
+export const ClassPick = z.object({
+  side: z.enum(['prisoner', 'warden'], { error: 'Pick prisoner or warden' }),
+  cls: z.enum([...CLASSES.prisoner, ...CLASSES.warden] as [ClassId, ...ClassId[]], { error: 'Unknown class' }),
+}).refine((p) => sideOf(p.cls) === p.side, { error: 'That class is not on your side' });
+
+// What a player queues for after joining: Classic, or Chaos with a side and class
+export const QueueRequest = z.discriminatedUnion('mode', [
+  z.object({ mode: z.literal('classic') }),
+  z.object({ mode: z.literal('chaos'), side: z.enum(['prisoner', 'warden']), cls: z.string() }),
+], { error: 'Pick Classic or Chaos' }).superRefine((q, ctx) => {
+  if (q.mode === 'chaos' && !ClassPick.safeParse({ side: q.side, cls: q.cls }).success) {
+    ctx.addIssue({ code: 'custom', message: 'Pick a class for your side' });
+  }
+});
+
 // Answer to the rematch button: true = accept, false = decline
 export const RematchVote = z.boolean({ error: 'Vote must be true or false' });
  

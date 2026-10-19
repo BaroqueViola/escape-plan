@@ -1,12 +1,16 @@
 // Socket.IO events. Add new events here so TypeScript can check them.
 
 import type { Server, Socket } from 'socket.io';
-import type { Coordinate, Role, Tile } from '../packages/game-core/src/index.js';
-export type { Role };
+import type { ChaosEvent, ClassId, Coordinate, Direction, Role, StolenKind, Tile } from '../packages/game-core/src/index.js';
+import type { ModeName } from './modes.js';
+export type { ChaosEvent, ClassId, ModeName, Role };
 
 // ---- Data sent to clients (names, not socket ids) ----------------------------
 
 export interface GameState {
+  mode: ModeName;
+  classes: Record<Role, ClassId> | null; // Chaos: each side's class; null in Classic
+  staysLeft: Record<Role, number> | null; // stays left before each side must move; null once finished
   board: { width: number; height: number; cells: readonly Tile[] }; // row by row
   positions: Record<Role, Coordinate>;
   roles: Record<string, Role>; // nickname -> role
@@ -17,6 +21,29 @@ export interface GameState {
   serverTime: number; // time left = turnDeadline - serverTime (no clock sync needed)
   outcome: { winner: string; reason: 'capture' | 'escape' } | null;
   rematchVotes: Record<string, boolean>;
+  chaos: ChaosView | null; // Chaos abilities; null in Classic
+}
+
+// Ability state as a player sees it. The warden (and spectators) can't tell
+// Naruto from his clones: positions.prisoner is then just one of the figures,
+// the rest are in clones with no direction, and swaps aren't reported.
+export interface ChaosView {
+  hidden: boolean; // true when the figures are shuffled as above
+  bar: number; // All Might's charge
+  charges: number; // Naruto's banked clones
+  clones: { x: number; y: number; direction: Direction | null }[];
+  fingers: Coordinate[]; // Sukuna's fingers on the map
+  collected: number; // fingers Sukuna holds
+  cooldown: Record<Role, number>;
+  stunned: Record<Role, number>;
+  cracks: Coordinate[];
+  stolen: { from: ClassId; uses: StolenKind[] } | null; // what All For One holds
+  locked: number; // prisoner turns left without their ability (stolen)
+  wardenClones: { x: number; y: number; direction: Direction; life: number }[]; // All For One's clone
+  illusion: number; // prisoner turns left in Sasuke's illusion
+  blind: boolean; // you are in the illusion: the board is hidden and your keys are shuffled
+  inVoid: boolean; // the prisoner is in Gojo's Void and must win the challenge
+  events: ChaosEvent[]; // what happened in the last turn
 }
 
 // Ready check before a new match: who has pressed Ready (nicknames)
@@ -34,8 +61,23 @@ export interface PauseStatus {
 }
 
 export interface MatchInfo {
-  you: { nickname: string; role: Role };
-  opponent: { nickname: string; role: Role };
+  mode: ModeName;
+  you: { nickname: string; role: Role; cls: ClassId | null };
+  opponent: { nickname: string; role: Role; cls: ClassId | null };
+}
+
+// Where a player stands after picking a mode (null = not looking for a match)
+export interface QueueStatus {
+  mode: ModeName;
+  side: Role | null; // Chaos only
+  cls: ClassId | null; // Chaos only
+}
+
+// Chaos rematch: both players pick a side and class again before the next match
+export interface PickingStatus {
+  picking: boolean;
+  picked: string[]; // nicknames who locked in
+  taken: Partial<Record<Role, string>>; // side -> nickname who locked it in first
 }
 
 export interface MatchResult {
@@ -50,8 +92,9 @@ export interface MatchResult {
 // One running game (Socket.IO room game:<id>), as the admin page sees it
 export interface GameSummary {
   id: string;
-  players: { nickname: string; role: Role | null; score: number }[];
-  status: 'ready' | 'playing' | 'paused' | 'finished'; // ready = waiting for both to press Ready
+  mode: ModeName;
+  players: { nickname: string; role: Role | null; cls: ClassId | null; score: number }[];
+  status: 'ready' | 'picking' | 'playing' | 'paused' | 'finished'; // ready = waiting for both to press Ready; picking = Chaos rematch side/class pick
   turn: string | null; // nickname whose turn it is, while playing
   ready: string[]; // nicknames who pressed Ready, during the ready check
   winner: string | null; // nickname, once the match is finished
@@ -106,7 +149,8 @@ export interface SpectatorInfo {
 // What a waiting player sees in the "Spectate a live game" list
 export interface LiveGame {
   id: string;
-  players: { nickname: string; role: Role | null }[];
+  mode: ModeName;
+  players: { nickname: string; role: Role | null; cls: ClassId | null }[];
   status: GameSummary['status'];
   spectators: number;
 }
@@ -133,13 +177,16 @@ export interface FeedEntry {
   gameId: string;
   at: number;
   text: string;
+  chaos?: boolean; // a class pick, an ability or a Void result (shown in Chaos pink)
 }
 
 export interface ServerToClientEvents {
   'lobby:state': (players: string[]) => void;
   'player:welcome': (message: string) => void;
   'player:rejected': (reason: string) => void;
-  'player:kicked': (reason: string) => void; // the admin kicked you; the server then disconnects you
+  'player:kicked': (reason: string) => void;
+  'player:queued': (status: QueueStatus | null) => void; // after player:queue / leaveQueue
+  'player:sideTaken': (message: string, side: Role) => void; // Chaos: your side was taken, pick a class on this side // the admin kicked you; the server then disconnects you
   'admin:dashboard': (state: DashboardState, event?: string) => void; // event: what just happened, for the activity log
 
   // Gameplay
@@ -150,6 +197,7 @@ export interface ServerToClientEvents {
   'game:rejected': (reason: string) => void; // bad move or vote, only to the sender
   'game:ended': (result: MatchResult) => void; // per player: Win / Lost, reason, scores
   'game:rematchStatus': (votes: Record<string, boolean>) => void; // nickname -> accepted?
+  'game:picking': (status: PickingStatus) => void; // Chaos rematch: pick side and class again
   'game:opponentLeft': (message: string) => void;
   'server:reset': (message: string) => void; // admin Reset button was pressed
 
@@ -168,6 +216,8 @@ export interface ServerToClientEvents {
 // Client data is `unknown` until validated with Zod
 export interface ClientToServerEvents {
   'player:join': (nickname: unknown) => void;
+  'player:queue': (request: unknown) => void; // { mode: 'classic' } or { mode: 'chaos', side, cls }
+  'player:leaveQueue': () => void; // back to the mode menu
   'admin:reset': (done: (ok: boolean) => void) => void; // admin asking for reset
 
   'game:ready': () => void; // player pressed the Ready button
@@ -175,6 +225,9 @@ export interface ClientToServerEvents {
   'game:pauseAnswer': (accept: unknown) => void; // answer the rival's pause request
   'game:resume': () => void; // ready to continue after a pause
   'game:move': (direction: unknown) => void;
+  'game:stay': () => void; // keep your spot this turn (at most 2 in a row)
+  'game:ability': (ability: unknown) => void; // Chaos: { kind: 'smash', direction } and so on (see schema.ts)
+  'game:pick': (pick: unknown) => void; // Chaos rematch: { side, cls }
   'game:rematchVote': (accept: unknown) => void;
 
   'chat:send': (message: unknown) => void; // { text, speak }

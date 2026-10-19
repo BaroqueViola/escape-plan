@@ -1,6 +1,6 @@
 import { describe, expect, it, vi } from 'vitest';
-import { createSession, generateMap, legalMoves, MAX_GENERATION_ATTEMPTS, move,
-  resetSession, resolveTimeout, restartTurn, startMatch, tileAt, validateMap, voteRematch,
+import { createSession, generateMap, legalMoves, MAX_GENERATION_ATTEMPTS, MAX_STAYS, move, nextMatch,
+  resetSession, resolveTimeout, restartTurn, startMatch, stay, tileAt, validateMap, voteRematch,
   type ActiveMatch, type Board, type Coordinate, type GeneratedMap, type Random,
   type Result, type Session, type Tile } from '../src/index.js';
 
@@ -23,7 +23,7 @@ function freeze<T>(value: T): T {
 }
 const base = (): Session => unwrap(createSession(['alice', 'bob']));
 function fixture(warden: Coordinate = { x: 2, y: 2 }, prisoner: Coordinate = { x: 0, y: 1 },
-  active: 'alice' | 'bob' = 'alice'): Session & { match: ActiveMatch } {
+  active: 'alice' | 'bob' = 'alice', stays = 0): Session & { match: ActiveMatch } {
   const cells: Tile[] = Array<Tile>(25).fill('free');
   for (let i = 20; i < 25; i++) cells[i] = 'obstacle';
   cells[19] = 'tunnel';
@@ -31,6 +31,7 @@ function fixture(warden: Coordinate = { x: 2, y: 2 }, prisoner: Coordinate = { x
     status: 'active', board: { width: 5, height: 5, cells },
     roles: { warden: 'alice', prisoner: 'bob' }, positions: { warden, prisoner },
     turn: { playerId: active, startedAt: 100, deadline: 10100 },
+    staysLeft: { warden: stays, prisoner: stays },
   } };
 }
 function expectError<T>(result: Result<T>, code: string): void {
@@ -249,6 +250,60 @@ describe('timeout and outcomes', () => {
     const escape = unwrap(resolveTimeout(fixture({ x: 0, y: 0 }, { x: 3, y: 3 }, 'bob'), 10100, () => .99));
     expect(escape.match?.status === 'finished' && escape.match.outcome.reason).toBe('escape');
     expect(escape.scores.bob).toBe(1);
+  });
+});
+
+describe('stay', () => {
+  it('keeps the spot, passes the turn and uses one stay', () => {
+    const input = freeze(fixture(undefined, undefined, 'alice', MAX_STAYS));
+    const next = unwrap(stay(input, 'alice', 250));
+    if (next.match?.status !== 'active') throw new Error('Expected active');
+    expect(next.match.positions).toEqual(input.match.positions);
+    expect(next.match.turn).toEqual({ playerId: 'bob', startedAt: 250, deadline: 10250 });
+    expect(next.match.staysLeft).toEqual({ warden: MAX_STAYS - 1, prisoner: MAX_STAYS });
+  });
+  it('allows at most two stays in a row, and a move refills them', () => {
+    let s: Session = fixture(undefined, undefined, 'alice', MAX_STAYS);
+    s = unwrap(stay(s, 'alice', 200));
+    s = unwrap(stay(s, 'bob', 300));
+    s = unwrap(stay(s, 'alice', 400));
+    s = unwrap(move(s, 'bob', 'down', 500));
+    expectError(stay(s, 'alice', 600), 'NO_STAYS_LEFT');
+    s = unwrap(move(s, 'alice', 'up', 600));
+    if (s.match?.status !== 'active') throw new Error('Expected active');
+    expect(s.match.staysLeft).toEqual({ warden: MAX_STAYS, prisoner: MAX_STAYS });
+  });
+  it('rejects stays out of turn, after the deadline or without a match', () => {
+    const input = freeze(fixture(undefined, undefined, 'alice', MAX_STAYS));
+    expectError(stay(input, 'bob', 200), 'OUT_OF_TURN');
+    expectError(stay(input, 'eve', 200), 'UNKNOWN_PLAYER');
+    expectError(stay(input, 'alice', 10100), 'TURN_EXPIRED');
+    expectError(stay(base(), 'alice', 200), 'NO_ACTIVE_MATCH');
+  });
+  it('stays put on timeout while stays are left, without drawing randomness', () => {
+    const rng = vi.fn(() => .5);
+    const next = unwrap(resolveTimeout(freeze(fixture(undefined, undefined, 'alice', 1)), 10100, rng));
+    if (next.match?.status !== 'active') throw new Error('Expected active');
+    expect(next.match.positions.warden).toEqual({ x: 2, y: 2 });
+    expect(next.match.staysLeft.warden).toBe(0);
+    expect(rng).not.toHaveBeenCalled();
+  });
+  it('starts matches with full stays and lets the caller pick the warden', () => {
+    const s = unwrap(startMatch(base(), 0, seeded(3), { width: 7, height: 7 }, 'bob'));
+    if (s.match?.status !== 'active') throw new Error('Expected active');
+    expect(s.match.roles).toEqual({ warden: 'bob', prisoner: 'alice' });
+    expect(s.match.board.width).toBe(7);
+    expect(s.match.staysLeft).toEqual({ warden: MAX_STAYS, prisoner: MAX_STAYS });
+    expectError(startMatch(base(), 0, seeded(3), undefined, 'eve'), 'UNKNOWN_PLAYER');
+  });
+  it('records rematch votes without starting when asked, then nextMatch picks roles', () => {
+    let s = unwrap(voteRematch(finished(), 'alice', true, 300, seeded(1), false));
+    s = unwrap(voteRematch(s, 'bob', true, 300, seeded(1), false));
+    expect(s.match?.status).toBe('finished');
+    s = unwrap(nextMatch(s, 400, seeded(1), 'bob'));
+    expect(s.match?.status === 'active' && s.match.roles.warden).toBe('bob');
+    expect(s.scores).toEqual({ alice: 1, bob: 0 });
+    expectError(nextMatch(s, 500, seeded(1), 'bob'), 'NO_FINISHED_MATCH');
   });
 });
 

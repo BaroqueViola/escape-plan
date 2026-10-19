@@ -13,7 +13,7 @@ import type { GameServer } from './events.js';
 import { registerLobby } from './lobby.js';
 import { registerAdmin} from "./admin.js";
 import { registerGame } from './game.js';
-import { registerSocial, warmEmoteVoices } from './social.js';
+import { domainClip, registerSocial, warmEmoteVoices } from './social.js';
 import { getClip } from './voice.js';
 import { emoteSvg } from '../client/src/social/emoteArt.js';
 
@@ -54,6 +54,18 @@ app.get('/voice/:id', (req, res) => {
     return;
   }
   res.set({ 'Content-Type': 'audio/mpeg', 'Cache-Control': 'public, max-age=31536000, immutable', 'Access-Control-Allow-Origin': '*' });
+  res.send(audio);
+});
+
+// Gojo's "Domain Expansion" line; 404 until it has been made (the game plays a sound effect then)
+app.get('/voice/line/domain', (_req, res) => {
+  const id = domainClip();
+  const audio = id ? getClip(id) : null;
+  if (!audio) {
+    res.sendStatus(404);
+    return;
+  }
+  res.set({ 'Content-Type': 'audio/mpeg', 'Cache-Control': 'no-cache', 'Access-Control-Allow-Origin': '*' });
   res.send(audio);
 });
 

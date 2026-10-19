@@ -63,7 +63,7 @@ export const wasKicked = (socketId: string): boolean => kicked.has(socketId);
 
 // Send the board to everyone watching this game
 export function sendSpectatorState(io: GameServer, g: Game): void {
-  if (spectatorsOf(g.id).length > 0) io.to(watchRoom(g.id)).emit('spectate:state', summarize(g));
+  if (spectatorsOf(g.id).length > 0) io.to(watchRoom(g.id)).emit('spectate:state', summarize(g, 'public'));
 }
 
 // Live games a waiting player can watch (sent to everyone; players in a game ignore it)
@@ -72,7 +72,8 @@ export function broadcastSpectateList(io: GameServer): void {
     .filter((g) => { const game = findGame(g.id); return !!game && features(game.mode).spectate; })
     .map((g) => ({
       id: g.id,
-      players: g.players.map((p) => ({ nickname: p.nickname, role: p.role })),
+      mode: g.mode,
+      players: g.players.map((p) => ({ nickname: p.nickname, role: p.role, cls: p.cls })),
       status: g.status,
       spectators: g.spectators.length,
     }));
@@ -101,12 +102,18 @@ export function startGameSocial(io: GameServer, g: Game): void {
   io.to(gameChannel(g)).emit('social:spectators', { count: 0, names: [] });
 }
 
-// Make the six emote voice lines once at startup (cached on disk, so this is free after the first run)
+// Gojo's Domain Expansion line, in the warden's voice (GET /voice/line/domain)
+const DOMAIN_LINE = 'Domain Expansion. Infinite Void.';
+export const domainClip = (): string | null => cachedClip(DOMAIN_LINE, 'warden');
+
+// Make the six emote voice lines and the Domain Expansion line once at startup
+// (cached on disk, so this is free after the first run)
 export async function warmEmoteVoices(): Promise<void> {
   for (const emote of [...PRISONER_EMOTES, ...WARDEN_EMOTES]) {
     const role = (PRISONER_EMOTES as readonly string[]).includes(emote) ? 'prisoner' : 'warden';
     if (!cachedClip(EMOTE_LINES[emote], role) && canSpeak(EMOTE_LINES[emote])) await speak(EMOTE_LINES[emote], role);
   }
+  if (!domainClip() && canSpeak(DOMAIN_LINE)) await speak(DOMAIN_LINE, 'warden');
 }
 
 // ---- Helpers --------------------------------------------------------------------
@@ -157,8 +164,8 @@ function tooSoon(kind: string, socketId: string, gapMs: number): boolean {
   return false;
 }
 
-function addFeed(io: GameServer, gameId: string, text: string): void {
-  feed.unshift({ gameId, at: Date.now(), text });
+export function addFeed(io: GameServer, gameId: string, text: string, chaos = false): void {
+  feed.unshift(chaos ? { gameId, at: Date.now(), text, chaos } : { gameId, at: Date.now(), text });
   feed.length = Math.min(feed.length, FEED_SIZE);
   sendDashboard(io);
 }
@@ -286,7 +293,7 @@ export function registerSocial(io: GameServer, socket: GameSocket): void {
     watching.set(socket.id, g.id);
     socket.join(watchRoom(g.id));
     socket.emit('social:features', featuresFor(socket.id));
-    socket.emit('spectate:state', summarize(g));
+    socket.emit('spectate:state', summarize(g, 'public'));
     socket.emit('chat:history', history.get(g.id) ?? []);
     sendSpectatorCount(io, g.id);
     addFeed(io, g.id, `${nameOf(socket.id)} started watching`);
