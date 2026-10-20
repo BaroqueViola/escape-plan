@@ -32,6 +32,7 @@ import { addFeed, endSpectating, sendSpectatorState, spectatorsOf, startGameSoci
 export interface Game {
   id: string;
   mode: ModeName; // Classic or Chaos; also decides chat, emotes, spectating, voice
+  boardOptions: import('../packages/game-core/src/index.js').BoardOptions;
   classes: Record<Role, ClassId> | null; // Chaos: the class on each side; null in Classic
   picking: Map<PlayerId, { side: Role; cls: ClassId }> | null; // Chaos rematch: side/class picks so far
   session: Session; // replaced after every successful core call
@@ -129,7 +130,7 @@ export function summarize(g: Game, viewer: Viewer = 'all'): GameSummary {
     status,
     turn: status === 'playing' && m?.status === 'active' ? g.names[m.turn.playerId] ?? null : null,
     ready: g.ready ? [...g.ready].map((id) => g.names[id] ?? id) : [],
-    winner: m?.status === 'finished' ? g.names[m.outcome.winner] ?? null : null,
+    winner: m?.status === 'finished' && m.outcome.winner ? g.names[m.outcome.winner] ?? null : null,
     state: toGameState(g.session, g.names, Date.now(), kindOf(g), viewer),
     spectators: spectatorsOf(g.id),
   };
@@ -262,9 +263,15 @@ export function chaosSideTaken(io: GameServer, socketId: PlayerId, side: Role): 
 export function matchmake(io: GameServer): void {
   for (;;) {
     const waiting = waitingPlayers(io);
-    const classic = waiting.filter(([, p]) => p.mode === 'classic');
-    if (classic.length >= 2) {
-      startGame(io, classic[0]![0], classic[1]![0], 'classic', null);
+    const classic = waiting.filter(([ , p]) => p.mode === 'classic');
+    const classicPair = classic.length >= 2 ? [classic[0]![0], classic[1]![0]] as const : null;
+    if (classicPair) {
+      startGame(io, classicPair[0], classicPair[1], 'classic', null);
+      continue;
+    }
+    const custom = waiting.filter((entry): entry is [PlayerId, Extract<import('./state.js').QueuePick, { mode: 'custom' }>] => entry[1].mode === 'custom');
+    if (custom.length >= 2) {
+      startGame(io, custom[0]![0], custom[1]![0], 'classic', null, custom[0]![1].board);
       continue;
     }
     const prisoner = waiting.find(([, p]) => p.mode === 'chaos' && p.side === 'prisoner');
@@ -278,9 +285,9 @@ export function matchmake(io: GameServer): void {
 }
 
 // In Chaos `a` plays warden; in Classic the core picks the warden at random
-function startGame(io: GameServer, a: PlayerId, b: PlayerId, mode: ModeName, classes: Record<Role, ClassId> | null): void {
+function startGame(io: GameServer, a: PlayerId, b: PlayerId, mode: ModeName, classes: Record<Role, ClassId> | null, boardOptions = BOARDS[mode]): void {
   const created = createSession([a, b]);
-  const started = created.ok ? startMatch(created.value, Date.now(), rng, BOARDS[mode], mode === 'chaos' ? a : undefined, classes ?? undefined) : created;
+  const started = created.ok ? startMatch(created.value, Date.now(), rng, boardOptions, mode === 'chaos' ? a : undefined, classes ?? undefined) : created;
   if (!started.ok) {
     console.error(`Could not start a match: ${started.error.code}`);
     for (const id of [a, b]) { // don't retry the same pair forever: back to the mode menu
@@ -294,6 +301,7 @@ function startGame(io: GameServer, a: PlayerId, b: PlayerId, mode: ModeName, cla
   const g: Game = {
     id: String(nextGameId++),
     mode,
+    boardOptions,
     classes,
     picking: null,
     session: started.value,
@@ -360,6 +368,8 @@ function sendPickingStatus(io: GameServer, g: Game): void {
     picking: g.picking !== null,
     picked: [...picks.keys()].map((id) => g.names[id] ?? id),
     taken,
+    wardenRequired: g.session.match?.status === 'finished' && g.session.match.outcome.winner
+      ? g.names[g.session.match.outcome.winner] ?? g.session.match.outcome.winner : null,
   });
   sendDashboard(io);
 }
@@ -377,7 +387,7 @@ export function resetGame(io: GameServer): void {
     }
     io.to(channel(g)).emit('server:reset', 'The server reset the game and scores.');
 
-    const restarted = startMatch(g.session, Date.now(), rng, BOARDS[g.mode], warden, g.classes ?? undefined);
+    const restarted = startMatch(g.session, Date.now(), rng, g.boardOptions, warden, g.classes ?? undefined);
     if (!restarted.ok) {
       console.error(`Could not restart game ${g.id}: ${restarted.error.code}`);
       continue;
@@ -568,6 +578,13 @@ export function registerGame(io: GameServer, socket: GameSocket): void {
     }
     const g = gameOf.get(socket.id);
     if (!g || g.picking === null) return;
+    const previousWinner = g.session.match?.status === 'finished' ? g.session.match.outcome.winner : null;
+    if (previousWinner && (socket.id === previousWinner ? pick.data.side !== 'warden' : pick.data.side !== 'prisoner')) {
+      socket.emit('game:rejected', socket.id === previousWinner
+        ? 'The previous winner must play warden in the rematch.'
+        : 'The previous winner is assigned warden; choose prisoner.');
+      return;
+    }
     const other = [...g.picking].find(([id]) => id !== socket.id);
     if (other && other[1].side === pick.data.side) {
       const side: Role = pick.data.side === 'warden' ? 'prisoner' : 'warden';
@@ -583,7 +600,7 @@ export function registerGame(io: GameServer, socket: GameSocket): void {
     const picks = g.picking;
     const wardenId = [...picks].find(([, p]) => p.side === 'warden')![0];
     const classes = { warden: picks.get(wardenId)!.cls, prisoner: [...picks].find(([, p]) => p.side === 'prisoner')![1].cls };
-    const next = nextMatch(g.session, Date.now(), rng, wardenId, BOARDS[g.mode], classes);
+    const next = nextMatch(g.session, Date.now(), rng, wardenId, g.boardOptions, classes);
     if (!next.ok) {
       socket.emit('game:rejected', REASONS[next.error.code]); // e.g. map generation failed: try again
       return;
@@ -630,6 +647,18 @@ export function registerGame(io: GameServer, socket: GameSocket): void {
       broadcastState(io, g);
       io.to(channel(g)).emit('game:rematchStatus', toRematchVotes(g.session, g.names));
     }
+  });
+
+  socket.on('game:leave', () => {
+    const g = gameOf.get(socket.id);
+    if (!g) return;
+    destroyGame(io, g);
+    for (const id of g.session.players) {
+      queue.delete(id);
+      io.to(id).emit('player:queued', null);
+      if (id !== socket.id) io.to(id).emit('game:opponentLeft', `${g.names[socket.id] ?? 'Your opponent'} left the match.`);
+    }
+    matchmake(io);
   });
 
   socket.on('disconnect', () => {

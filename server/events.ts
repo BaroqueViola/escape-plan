@@ -19,7 +19,7 @@ export interface GameState {
   turnNickname: string | null; // null once the match is finished
   turnDeadline: number | null; // epoch ms on the server clock
   serverTime: number; // time left = turnDeadline - serverTime (no clock sync needed)
-  outcome: { winner: string; reason: 'capture' | 'escape' } | null;
+  outcome: { winner: string | null; reason: 'capture' | 'escape' | 'stalemate' } | null;
   rematchVotes: Record<string, boolean>;
   chaos: ChaosView | null; // Chaos abilities; null in Classic
 }
@@ -68,9 +68,15 @@ export interface MatchInfo {
 
 // Where a player stands after picking a mode (null = not looking for a match)
 export interface QueueStatus {
-  mode: ModeName;
+  mode: ModeName | 'custom';
+  board?: { width: number; height: number; obstacleDensity: number };
   side: Role | null; // Chaos only
   cls: ClassId | null; // Chaos only
+}
+export interface CustomMapStatus {
+  host: string | null;
+  isHost: boolean;
+  board: { width: number; height: number; obstacleDensity: number };
 }
 
 // Chaos rematch: both players pick a side and class again before the next match
@@ -78,12 +84,13 @@ export interface PickingStatus {
   picking: boolean;
   picked: string[]; // nicknames who locked in
   taken: Partial<Record<Role, string>>; // side -> nickname who locked it in first
+  wardenRequired: string | null; // previous winner in a Chaos rematch
 }
 
 export interface MatchResult {
-  result: 'Win' | 'Lost'; // for the player receiving it
-  winner: string; // nickname
-  reason: 'capture' | 'escape';
+  result: 'Win' | 'Lost' | 'Draw'; // for the player receiving it
+  winner: string | null; // nickname, or null for stalemate
+  reason: 'capture' | 'escape' | 'stalemate';
   scores: Record<string, number>;
 }
 
@@ -182,6 +189,7 @@ export interface FeedEntry {
 
 export interface ServerToClientEvents {
   'lobby:state': (players: string[]) => void;
+  'lobby:customSettings': (settings: CustomMapStatus) => void;
   'player:welcome': (message: string) => void;
   'player:rejected': (reason: string) => void;
   'player:kicked': (reason: string) => void;
@@ -216,8 +224,10 @@ export interface ServerToClientEvents {
 // Client data is `unknown` until validated with Zod
 export interface ClientToServerEvents {
   'player:join': (nickname: unknown) => void;
-  'player:queue': (request: unknown) => void; // { mode: 'classic' } or { mode: 'chaos', side, cls }
+  'player:queue': (request: unknown) => void; // classic, custom, or chaos with side and class
   'player:leaveQueue': () => void; // back to the mode menu
+  'player:customSettings:get': () => void;
+  'player:customSettings:set': (settings: unknown, done: (result: { ok: boolean; reason?: string }) => void) => void;
   'admin:reset': (done: (ok: boolean) => void) => void; // admin asking for reset
 
   'game:ready': () => void; // player pressed the Ready button
@@ -229,6 +239,7 @@ export interface ClientToServerEvents {
   'game:ability': (ability: unknown) => void; // Chaos: { kind: 'smash', direction } and so on (see schema.ts)
   'game:pick': (pick: unknown) => void; // Chaos rematch: { side, cls }
   'game:rematchVote': (accept: unknown) => void;
+  'game:leave': () => void; // leave the match and return to the main menu
 
   'chat:send': (message: unknown) => void; // { text, speak }
   'emote:send': (emote: unknown) => void;

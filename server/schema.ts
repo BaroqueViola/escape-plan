@@ -47,11 +47,18 @@ export const ClassPick = z.object({
 // What a player queues for after joining: Classic, or Chaos with a side and class
 export const QueueRequest = z.discriminatedUnion('mode', [
   z.object({ mode: z.literal('classic') }),
+  z.object({ mode: z.literal('custom') }),
   z.object({ mode: z.literal('chaos'), side: z.enum(['prisoner', 'warden']), cls: z.string() }),
-], { error: 'Pick Classic or Chaos' }).superRefine((q, ctx) => {
+], { error: 'Pick a game mode' }).superRefine((q, ctx) => {
   if (q.mode === 'chaos' && !ClassPick.safeParse({ side: q.side, cls: q.cls }).success) {
     ctx.addIssue({ code: 'custom', message: 'Pick a class for your side' });
   }
+});
+
+export const CustomMapSettingsRequest = z.object({
+  width: z.number().int().min(5).max(20),
+  height: z.number().int().min(5).max(20),
+  obstacleDensity: z.number().int().min(5).max(40),
 });
 
 // Answer to the rematch button: true = accept, false = decline

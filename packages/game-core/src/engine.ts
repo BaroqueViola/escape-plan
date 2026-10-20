@@ -10,6 +10,12 @@ export const VOID_INTRO_MS = 1_500; // the Domain Expansion title card plays fir
 // A player may skip moving this many turns in a row, then must move
 export const MAX_STAYS = 2;
 const fullStays = { warden: MAX_STAYS, prisoner: MAX_STAYS } as const;
+const positionKey = (board: Board, positions: Readonly<Record<Role, Coordinate>>, next: Role,
+  staysLeft: Readonly<Record<Role, number>>, chaos: ChaosState | undefined): string => {
+  const persistentChaos = chaos ? (({ events: _events, ...state }) => state)(chaos) : null;
+  return JSON.stringify({ cells: board.cells, warden: positions.warden, prisoner: positions.prisoner,
+    next, staysLeft, chaos: persistentChaos });
+};
 const validTime = (now: number): boolean => Number.isFinite(now) && now >= 0
   && Number.isFinite(now + TURN_DURATION_MS);
 export function createSession(players: readonly [PlayerId, PlayerId]): Result<Session> {
@@ -36,6 +42,7 @@ function setup(session: Session, now: number, rng: Random, options: BoardOptions
     status: 'active', board: map.value.board, positions: map.value.starts,
     roles: { warden, prisoner }, turn: { playerId: warden, startedAt: now, deadline: now + TURN_DURATION_MS },
     staysLeft: fullStays, ...(chaos ? { chaos: chaos.value } : {}),
+    repetitions: { [positionKey(map.value.board, map.value.starts, 'warden', fullStays, chaos?.value)]: 1 },
   } });
 }
 // warden: who plays warden (Chaos players pick their side); random when left out.
@@ -71,6 +78,14 @@ function finish(session: Session, match: ActiveMatch, board: Board, positions: R
       outcome: { winner, reason }, rematchVotes: {} },
   });
 }
+function finishStalemate(session: Session, match: ActiveMatch, board: Board,
+  positions: Readonly<Record<Role, Coordinate>>, chaos: ChaosState | undefined): Result<Session> {
+  return success({ ...session,
+    match: { status: 'finished', board, roles: match.roles, positions,
+      ...(chaos ? { chaos } : {}),
+      outcome: { winner: null, reason: 'stalemate' }, rematchVotes: {} },
+  });
+}
 function transition(session: Session, match: ActiveMatch, role: Role, change: TurnChange,
   now: number, rng: Random): Result<Session> {
   const { positions, staysLeft = MAX_STAYS, board = match.board } = change;
@@ -98,9 +113,17 @@ function transition(session: Session, match: ActiveMatch, role: Role, change: Tu
       if (chaos.events.some(e => e.kind === 'clonecatch')) return finish(session, match, board, positions, chaos, 'capture');
     }
   }
-  return success({ ...session, match: { ...match, board, positions,
-    staysLeft: { ...match.staysLeft, [role]: staysLeft }, ...(chaos ? { chaos } : {}),
-    turn: { playerId: match.roles[next], startedAt: now, deadline: now + duration } } });
+  const repetitions = match.repetitions ?? {};
+  {
+    const staysAfterTurn = { ...match.staysLeft, [role]: staysLeft };
+    const key = positionKey(board, positions, next, staysAfterTurn, chaos);
+    const count = (repetitions[key] ?? 0) + 1;
+    if (count >= 3) return finishStalemate(session, match, board, positions, chaos);
+    return success({ ...session, match: { ...match, board, positions,
+      repetitions: { ...repetitions, [key]: count },
+      staysLeft: staysAfterTurn, ...(chaos ? { chaos } : {}),
+      turn: { playerId: match.roles[next], startedAt: now, deadline: now + duration } } });
+  }
 }
 // Checks shared by every action on your own turn; returns the active match and your role
 function ownTurn(session: Session, playerId: PlayerId, now: number): Result<{ match: ActiveMatch; role: Role }> {
@@ -210,7 +233,7 @@ export function voteRematch(session: Session, playerId: PlayerId, accept: boolea
   const rematchVotes = { ...match.rematchVotes, [playerId]: accept };
   const voted = { ...session, match: { ...match, rematchVotes } };
   return startWhenAgreed && session.players.every(p => rematchVotes[p] === true)
-    ? setup(voted, now, rng, match.board, match.outcome.winner) : success(voted);
+    ? setup(voted, now, rng, match.board, match.outcome.winner ?? undefined) : success(voted);
 }
 export function resetSession(session: Session): Session {
   return { ...session, scores: { [session.players[0]]: 0, [session.players[1]]: 0 }, match: null };

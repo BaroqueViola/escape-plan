@@ -2,7 +2,7 @@
 // and a class. The class picker also explains the class and its keys, and the
 // same cards are used again when a Chaos rematch asks both players to re-pick.
 
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import type { ClassId, Role } from '../../../server/events';
 import { CLASS_INFO, SIDE_CLASSES } from './classInfo';
 import { spriteUrl, type SpriteName } from './pixelSprites';
@@ -30,10 +30,10 @@ function Heading({ eyebrow, title, onBack }: { eyebrow: string; title: string; o
   </div>;
 }
 
-export function ModePicker({ onPick }: { onPick: (mode: 'classic' | 'chaos') => void }) {
+export function ModePicker({ onPick, onCustom }: { onPick: (mode: 'classic' | 'chaos') => void; onCustom: () => void }) {
   return <section className="menu panel">
     <Heading eyebrow="MODE" title="How do you want to play?" />
-    <div className="menu-cards two">
+    <div className="menu-cards three">
       <button className="menu-card mode-classic" onClick={() => onPick('classic')}>
         <span className="eyebrow">CLASSIC</span><strong>Classic</strong>
         <span className="menu-art"><img src="/assets/prisoner.svg" alt="" /><img src="/assets/warden.svg" alt="" /></span>
@@ -44,7 +44,36 @@ export function ModePicker({ onPick }: { onPick: (mode: 'classic' | 'chaos') => 
         <span className="menu-art"><PixelSprite name="naruto" size={72} /><PixelSprite name="gojo" size={72} /></span>
         <small>7 × 7 board. Pick a class with its own abilities.</small>
       </button>
+      <button className="menu-card mode-custom" onClick={onCustom}>
+        <span className="eyebrow">CUSTOM</span><strong>Custom map</strong>
+        <span className="menu-art">▦</span>
+        <small>Choose a board from 5 × 5 to 20 × 20 and set walls from 5% to 40%.</small>
+      </button>
     </div>
+  </section>;
+}
+
+export function CustomMapPicker({ onStart, onSave, onBack, isHost, ready, host, board }: {
+  onStart: (width: number, height: number, obstacleDensity: number) => void;
+  onSave: (width: number, height: number, obstacleDensity: number) => void;
+  onBack: () => void; isHost: boolean; ready: boolean; host: string | null;
+  board: { width: number; height: number; obstacleDensity: number };
+}) {
+  const [width, setWidth] = useState(board.width);
+  const [height, setHeight] = useState(board.height);
+  const [density, setDensity] = useState(board.obstacleDensity);
+  useEffect(() => { setWidth(board.width); setHeight(board.height); setDensity(board.obstacleDensity); }, [board.width, board.height, board.obstacleDensity]);
+  return <section className="menu panel">
+    <Heading eyebrow="CUSTOM MAP" title={isHost ? 'Set your board' : 'Current board settings'} onBack={onBack} />
+    <p className="menu-note">{!ready ? 'Loading the lobby host and shared map settings…' : isHost ? 'You are the lobby host. Your settings apply to everyone who joins custom mode.' : `Map settings are controlled by ${host ?? 'the lobby host'}.`}</p>
+    <form className="custom-map-form" onSubmit={(event) => { event.preventDefault(); onStart(width, height, density); }}>
+      <label>Length <span>columns</span><input type="number" min={5} max={20} disabled={!ready || !isHost} value={width} onChange={(e) => setWidth(Number(e.target.value))} /></label>
+      <label>Height <span>rows</span><input type="number" min={5} max={20} disabled={!ready || !isHost} value={height} onChange={(e) => setHeight(Number(e.target.value))} /></label>
+      <label className="density-field">Obstacle density <strong>{density}%</strong><input type="range" min={5} max={40} step={1} disabled={!ready || !isHost} value={density} onChange={(e) => setDensity(Number(e.target.value))} /><small>{isHost ? 'Walls are placed at random.' : 'The host sets the wall density.'}</small></label>
+      <div className="custom-map-preview">{width} × {height} board · {Math.floor(width * height * density / 100)} walls</div>
+      {isHost && <button className="small-button custom-save" type="button" disabled={!ready} onClick={() => onSave(width, height, density)}>SAVE SETTINGS</button>}
+      <button className="primary-button lock-in" type="submit" disabled={!ready}>{isHost ? 'FIND MATCH' : 'JOIN CUSTOM QUEUE'} <span>↗</span></button>
+    </form>
   </section>;
 }
 
@@ -130,15 +159,19 @@ export function ClassDetails({ cls, demo = false }: { cls: ClassId; demo?: boole
 }
 
 // Chaos rematch: both players pick a side and class again
-export function RematchPicker({ picked, taken, me, side, onSide, onLock, onBack }: {
-  picked: string[]; taken: Partial<Record<Role, string>>; me: string; side: Role | null;
-  onSide: (side: Role) => void; onLock: (cls: ClassId) => void; onBack: () => void;
+export function RematchPicker({ picked, taken, me, side, wardenRequired, onSide, onLock, onBack }: {
+  picked: string[]; taken: Partial<Record<Role, string>>; me: string; side: Role | null; wardenRequired: string | null;
+  onSide: (side: Role) => void; onLock: (side: Role, cls: ClassId) => void; onBack: () => void;
 }) {
   if (picked.includes(me)) {
     return <section className="menu panel"><Heading eyebrow="REMATCH" title="Waiting for your rival" />
       <p className="menu-note">You locked in. The next match starts as soon as your rival picks too.</p></section>;
   }
+  if (wardenRequired) {
+    const forcedSide: Role = me === wardenRequired ? 'warden' : 'prisoner';
+    return <ClassPicker side={forcedSide} onLock={(cls) => onLock(forcedSide, cls)} />;
+  }
   return side === null
     ? <SidePicker onPick={onSide} taken={Object.fromEntries(Object.entries(taken).filter(([, name]) => name !== me))} />
-    : <ClassPicker side={side} onLock={onLock} onBack={onBack} />;
+    : <ClassPicker side={side} onLock={(cls) => onLock(side, cls)} onBack={onBack} />;
 }

@@ -1,14 +1,27 @@
 // Lobby: players joining with a nickname and leaving.
 
 import type { GameServer, GameSocket } from './events.js';
-import { Nickname, QueueRequest } from './schema.js';
-import { players, queue, type QueuePick } from './state.js';
+import { CustomMapSettingsRequest, Nickname, QueueRequest } from './schema.js';
+import { addJoinedPlayer, customMapSettings, hostPlayerId, players, queue, removeJoinedPlayer, setCustomMapSettings, type QueuePick } from './state.js';
 import { printDashboard } from "./dashboard.js";
 import { chaosSideTaken, gameOfPlayer, matchmake } from './game.js';
 
 // Nicknames of everyone who has joined
 function lobbyNames(): string[] {
   return [...players.values()];
+}
+
+function broadcastCustomSettings(io: GameServer): void {
+  for (const id of players.keys()) sendCustomSettings(io, id);
+}
+
+function sendCustomSettings(io: GameServer, id: string): void {
+  const host = hostPlayerId();
+  io.to(id).emit('lobby:customSettings', {
+    host: host ? players.get(host) ?? null : null,
+    isHost: id === host,
+    board: { ...customMapSettings },
+  });
 }
 
 export function registerLobby(io: GameServer, socket: GameSocket): void {
@@ -35,13 +48,42 @@ export function registerLobby(io: GameServer, socket: GameSocket): void {
       return;
     }
 
-    players.set(socket.id, nickname);
+    addJoinedPlayer(socket.id, nickname);
     socket.emit('player:welcome', `Welcome, ${nickname}.`);
     io.emit('lobby:state', lobbyNames());
+    broadcastCustomSettings(io);
     // Next the player picks Classic or Chaos (player:queue)
 
     // Printing out the players who joined
     printDashboard(io, `${nickname} joined`);
+  });
+
+  socket.on('player:customSettings:get', () => {
+    if (players.has(socket.id)) sendCustomSettings(io, socket.id);
+  });
+
+  socket.on('player:customSettings:set', (raw, done) => {
+    if (!players.has(socket.id)) {
+      done({ ok: false, reason: 'Join the lobby before changing map settings.' });
+      return;
+    }
+    if (socket.id !== hostPlayerId()) {
+      done({ ok: false, reason: 'Only the first player in the lobby can change map settings.' });
+      return;
+    }
+    const parsedSettings = CustomMapSettingsRequest.safeParse(raw);
+    if (!parsedSettings.success) {
+      done({ ok: false, reason: parsedSettings.error.issues[0]?.message ?? 'Invalid map settings.' });
+      return;
+    }
+    setCustomMapSettings(parsedSettings.data);
+    for (const [id, queued] of queue) if (queued.mode === 'custom') {
+      const updated: QueuePick = { mode: 'custom', board: { ...customMapSettings } };
+      queue.set(id, updated);
+      io.to(id).emit('player:queued', { mode: 'custom', side: null, cls: null, board: updated.board });
+    }
+    broadcastCustomSettings(io);
+    done({ ok: true });
   });
 
   // After joining: Classic, or Chaos with a side and class. Then wait for an opponent.
@@ -61,8 +103,10 @@ export function registerLobby(io: GameServer, socket: GameSocket): void {
       return;
     }
     const request = parsed.data;
-    const pick: QueuePick = request.mode === 'classic' ? { mode: 'classic' }
-      : { mode: 'chaos', side: request.side, cls: request.cls as Extract<QueuePick, { mode: 'chaos' }>['cls'] };
+    let pick: QueuePick;
+    if (request.mode === 'classic') pick = { mode: 'classic' };
+    else if (request.mode === 'custom') pick = { mode: 'custom', board: { ...customMapSettings } };
+    else pick = { mode: 'chaos', side: request.side, cls: request.cls as Extract<QueuePick, { mode: 'chaos' }>['cls'] };
     if (pick.mode === 'chaos' && chaosSideTaken(io, socket.id, pick.side)) {
       const side = pick.side === 'warden' ? 'prisoner' : 'warden';
       socket.emit('player:sideTaken', `Someone already picked ${pick.side}. You play ${side} this time: pick a ${side} class.`, side);
@@ -70,8 +114,8 @@ export function registerLobby(io: GameServer, socket: GameSocket): void {
     }
     queue.delete(socket.id); // re-queueing moves you to the back
     queue.set(socket.id, pick);
-    socket.emit('player:queued', { mode: pick.mode, side: pick.mode === 'chaos' ? pick.side : null, cls: pick.mode === 'chaos' ? pick.cls : null });
-    printDashboard(io, `${nickname} is looking for a ${pick.mode === 'chaos' ? `Chaos game as ${pick.side}` : 'Classic game'}`);
+    socket.emit('player:queued', { mode: pick.mode, side: pick.mode === 'chaos' ? pick.side : null, cls: pick.mode === 'chaos' ? pick.cls : null, ...(pick.mode === 'custom' ? { board: pick.board } : {}) });
+    printDashboard(io, `${nickname} is looking for a ${pick.mode === 'chaos' ? `Chaos game as ${pick.side}` : pick.mode === 'custom' ? 'custom map game' : 'Classic game'}`);
     matchmake(io);
   });
 
@@ -88,8 +132,9 @@ export function registerLobby(io: GameServer, socket: GameSocket): void {
 
 
     // delete() returns true only if this client had joined
-    if (players.delete(socket.id)) {
+    if (removeJoinedPlayer(socket.id)) {
       io.emit('lobby:state', lobbyNames());
+      broadcastCustomSettings(io);
     }
 
     printDashboard(io, nickname ? `${nickname} left` : `Client disconnected (${socket.id})`);

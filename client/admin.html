@@ -562,7 +562,8 @@
         info.appendChild(timer);
       }
       const note = game.status === 'finished' && st.outcome
-        ? `${st.outcome.winner} won by ${st.outcome.reason === 'escape' ? 'escaping through the tunnel' : 'catching the prisoner'}.`
+        ? st.outcome.reason === 'stalemate' ? 'Draw by threefold repetition.'
+          : `${st.outcome.winner} won by ${st.outcome.reason === 'escape' ? 'escaping through the tunnel' : 'catching the prisoner'}.`
         : game.status === 'paused' ? 'Both players agreed to pause. The clock is stopped.'
         : game.status === 'ready' ? 'Waiting for both players to press Ready.' : 'Updates live after every move.';
       info.appendChild(el('p', 'watch-note', note));

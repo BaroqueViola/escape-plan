@@ -1,12 +1,12 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { io, type Socket } from 'socket.io-client';
-import type { ClassId, ClientToServerEvents, GameState, MatchInfo, MatchResult, PauseStatus, PickingStatus, QueueStatus, ReadyStatus, Role, ServerToClientEvents } from '../../server/events';
+import type { ClassId, ClientToServerEvents, CustomMapStatus, GameState, MatchInfo, MatchResult, PauseStatus, PickingStatus, QueueStatus, ReadyStatus, Role, ServerToClientEvents } from '../../server/events';
 import { SERVER_URL } from './config';
 import { useSocial } from './social/useSocial';
 import { BoardStage, ChatPanel, EmoteStrip, EyePill, KeyList, SpectateList, crowdEmotes, emotesFor } from './social/SocialUI';
 import { isMuted, setMuted, unlockAudio } from './social/sound';
 import './social/social.css';
-import { ChaosModePicker, ClassDetails, ClassPicker, ControlsBar, ModePicker, PixelSprite, RematchPicker, SidePicker } from './chaos/Menus';
+import { ChaosModePicker, ClassDetails, ClassPicker, ControlsBar, CustomMapPicker, ModePicker, PixelSprite, RematchPicker, SidePicker } from './chaos/Menus';
 import { CLASS_INFO } from './chaos/classInfo';
 import { spriteUrl } from './chaos/pixelSprites';
 import { ARROW, describeEvents, KEY_DIRECTION, rivalStatus, useChaosControls, type AbilityRequest, type BoardChaos } from './chaos/Abilities';
@@ -17,7 +17,12 @@ import './chaos/chaos-colours.css';
 
 type GameSocket = Socket<ServerToClientEvents, ClientToServerEvents>;
 type Direction = 'up' | 'down' | 'left' | 'right';
-type MenuStep = 'mode' | 'chaos' | 'side' | 'class';
+type MenuStep = 'mode' | 'custom' | 'chaos' | 'side' | 'class';
+const MENU_STEPS: readonly MenuStep[] = ['mode', 'custom', 'chaos', 'side', 'class'];
+function savedMenu(): MenuStep {
+  const value = window.sessionStorage.getItem('escape-plan-menu');
+  return MENU_STEPS.includes(value as MenuStep) ? value as MenuStep : 'mode';
+}
 const MAX_STAYS = 2; // same as the game core
 
 // Picture of a character: the Chaos class sprite, or the Classic prisoner / warden
@@ -156,11 +161,14 @@ export default function App() {
   const [kickedReason, setKickedReason] = useState<string | null>(null); // shown on the name screen after the admin kicks you
   const kickedRef = useRef(false);
   // After joining: which menu is open, the side being picked, and the queue the server confirmed
-  const [menu, setMenu] = useState<MenuStep>('mode');
+  const [menu, setMenu] = useState<MenuStep>(savedMenu);
   const [pickSide, setPickSide] = useState<Role | null>(null);
   const [queued, setQueued] = useState<QueueStatus | null>(null);
+  const [customSettings, setCustomSettings] = useState<CustomMapStatus | null>(null);
   const [picking, setPicking] = useState<PickingStatus | null>(null); // Chaos rematch: re-pick side and class
   const [showHelp, setShowHelp] = useState(false); // the "?" keybind card
+  const [confirmQuit, setConfirmQuit] = useState(false);
+  const [leavingMatch, setLeavingMatch] = useState(false);
   const [receivedAt, setReceivedAt] = useState(0);
   const [elapsed, setElapsed] = useState(0);
 
@@ -173,8 +181,8 @@ export default function App() {
       if (pendingName.current) client.emit('player:join', pendingName.current);
     });
     client.on('disconnect', (reason) => {
-      setConnected(false); setJoined(false); setInfo(null); setState(null); setResult(null); setReadyStatus(null); setPauseStatus(null);
-      setQueued(null); setPicking(null); setMenu('mode'); setPickSide(null);
+      setConnected(false); setJoined(false); setInfo(null); setState(null); setResult(null); setReadyStatus(null); setPauseStatus(null); setLeavingMatch(false); setConfirmQuit(false);
+      setQueued(null); setCustomSettings(null); setPicking(null); setPickSide(null);
       if (kickedRef.current) {
         kickedRef.current = false;
         client.connect(); // kicked: reconnect straight away so the player can join again
@@ -193,9 +201,10 @@ export default function App() {
     });
     client.on('connect_error', () => setNotice('Cannot reach the game server. Retrying…'));
     client.on('player:welcome', (message) => { setWelcome(message); setJoined(true); setNotice(''); });
+    client.on('lobby:customSettings', setCustomSettings);
     client.on('player:rejected', (message) => { pendingName.current = ''; setNotice(message); });
     client.on('game:started', (value) => { setInfo(value); setState(null); setResult(null); setVotes({}); setReadyStatus(null); setPauseStatus(null); setPicking(null); setPickSide(null); setNotice(''); });
-    client.on('player:queued', (status) => { setQueued(status); if (!status) setMenu('mode'); });
+    client.on('player:queued', (status) => { setQueued(status); if (!status) setMenu((current) => current === 'custom' || current === 'class' ? current : 'mode'); });
     // Chaos: the side we picked was taken first, so pick a class on the other side
     client.on('player:sideTaken', (message, side) => { setPickSide(side); setMenu('class'); setNotice(message); });
     client.on('game:picking', (status) => { setPicking(status.picking ? status : null); if (!status.picking) setPickSide(null); });
@@ -205,10 +214,16 @@ export default function App() {
     client.on('game:ended', setResult);
     client.on('game:rematchStatus', setVotes);
     client.on('game:rejected', setNotice);
-    client.on('game:opponentLeft', (message) => { setInfo(null); setState(null); setResult(null); setVotes({}); setReadyStatus(null); setPauseStatus(null); setPicking(null); setPickSide(null); setNotice(`${message} Waiting for a new rival.`); });
+    client.on('game:opponentLeft', (message) => { setInfo(null); setState(null); setResult(null); setVotes({}); setReadyStatus(null); setPauseStatus(null); setPicking(null); setPickSide(null); setQueued(null); setMenu('mode'); setNotice(message); });
     client.on('server:reset', (message) => { setInfo(null); setState(null); setResult(null); setVotes({}); setReadyStatus(null); setPauseStatus(null); setNotice(message); });
     return () => { client.removeAllListeners(); client.disconnect(); socket.current = null; };
   }, []);
+
+  useEffect(() => {
+    if (joined && menu === 'custom') socket.current?.emit('player:customSettings:get');
+  }, [joined, menu]);
+
+  useEffect(() => { window.sessionStorage.setItem('escape-plan-menu', menu); }, [menu]);
 
   // Chat, emotes and spectating (after the socket is created above)
   const social = useSocial(socket);
@@ -223,7 +238,7 @@ export default function App() {
   const shownInfo = info;
   const shownState = state;
   const shownResult = result ?? (state?.outcome && info ? {
-    result: state.outcome.winner === info.you.nickname ? 'Win' : 'Lost',
+    result: state.outcome.winner === null ? 'Draw' : state.outcome.winner === info.you.nickname ? 'Win' : 'Lost',
     winner: state.outcome.winner,
     reason: state.outcome.reason,
     scores: state.scores,
@@ -267,10 +282,38 @@ export default function App() {
     setNotice('');
     socket.current?.emit('player:queue', mode === 'classic' ? { mode } : { mode, side, cls });
   }
+  function queueCustom(width: number, height: number, obstacleDensity: number) {
+    setNotice('');
+    if (!customSettings?.isHost) {
+      socket.current?.emit('player:queue', { mode: 'custom' });
+      return;
+    }
+    socket.current?.emit('player:customSettings:set', { width, height, obstacleDensity }, (saved) => {
+      if (!saved.ok) { setNotice(saved.reason ?? 'Could not save map settings.'); return; }
+      socket.current?.emit('player:queue', { mode: 'custom' });
+    });
+  }
+  function saveCustomSettings(width: number, height: number, obstacleDensity: number) {
+    socket.current?.emit('player:customSettings:set', { width, height, obstacleDensity }, (saved) => {
+      if (!saved.ok) setNotice(saved.reason ?? 'Could not save map settings.');
+      else setNotice('Map settings saved for everyone in custom mode.');
+    });
+  }
   function leaveQueue() {
     socket.current?.emit('player:leaveQueue');
-    setMenu(queued?.mode === 'chaos' ? 'class' : 'mode');
+    setMenu(queued?.mode === 'custom' ? 'custom' : queued?.mode === 'chaos' ? 'class' : 'mode');
     if (queued?.side) setPickSide(queued.side);
+  }
+  function returnToMenu() {
+    if (leavingMatch) return;
+    setLeavingMatch(true);
+    socket.current?.emit('game:leave');
+    // Leave the result screen immediately so REMATCH cannot still be clicked
+    // while the server is processing the leave event.
+    setConfirmQuit(false);
+    setInfo(null); setState(null); setResult(null); setVotes({}); setReadyStatus(null); setPauseStatus(null);
+    setPicking(null); setPickSide(null); setQueued(null); setMenu('mode'); setNotice('');
+    setLeavingMatch(false);
   }
   function stayPut() {
     if (canStay) socket.current?.emit('game:stay');
@@ -323,9 +366,10 @@ export default function App() {
   const me = info?.you.nickname ?? (pendingName.current || nickname.trim());
   // Chaos turns the whole page purple: from picking Chaos in the menu, through the queue and the game
   const chaosTheme = info ? info.mode === 'chaos' : watching ? watching.mode === 'chaos'
-    : queued ? queued.mode === 'chaos' : joined && menu !== 'mode';
-  const modeLabel = chaosTheme ? 'CHAOS · ABILITIES' : 'CLASSIC';
-  const menus = menu === 'mode' ? <ModePicker onPick={(mode) => mode === 'classic' ? queueFor('classic') : setMenu('chaos')} />
+    : queued ? queued.mode === 'chaos' : menu === 'chaos' || menu === 'side' || menu === 'class';
+  const modeLabel = chaosTheme ? 'CHAOS · ABILITIES' : queued?.board ? 'CUSTOM MAP' : 'CLASSIC';
+  const menus = menu === 'mode' ? <ModePicker onPick={(mode) => mode === 'classic' ? queueFor('classic') : setMenu('chaos')} onCustom={() => setMenu('custom')} />
+    : menu === 'custom' ? <CustomMapPicker onStart={queueCustom} onSave={saveCustomSettings} onBack={() => setMenu('mode')} isHost={customSettings?.isHost ?? false} ready={customSettings !== null} host={customSettings?.host ?? null} board={customSettings?.board ?? { width: 5, height: 5, obstacleDensity: 20 }} />
     : menu === 'chaos' ? <ChaosModePicker onPick={() => setMenu('side')} onBack={() => setMenu('mode')} />
     : menu === 'side' || pickSide === null ? <SidePicker onPick={(side) => { setPickSide(side); setMenu('class'); }} onBack={() => setMenu('chaos')} />
     : <ClassPicker key={pickSide} side={pickSide} initial={queued?.cls} onLock={(cls) => queueFor('chaos', pickSide, cls)} onBack={() => setMenu('side')} />;
@@ -335,6 +379,7 @@ export default function App() {
       <div className="brand"><span className="brand-mark">✦</span><div><strong>ESCAPE<span>PLAN</span></strong><small>{modeLabel}</small></div></div>
       <div className="topbar-actions">
         {inChat && social.features.spectate && <EyePill count={social.spectators.count} names={social.spectators.names} />}
+        {info && <button className="small-button ghost" disabled={leavingMatch} onClick={() => shownState?.status === 'finished' ? returnToMenu() : setConfirmQuit(true)}>{leavingMatch ? 'LEAVING…' : '⌂ MAIN MENU'}</button>}
         {inChat && social.features.emotes && <button className="small-button sound-button" aria-pressed={!soundOff} onClick={() => { setMuted(!soundOff); setSoundOff(!soundOff); }}>{soundOff ? '🔇 SOUND OFF' : '🔊 SOUND ON'}</button>}
         {canPause && <button className="small-button pause-button" disabled={iRequestedPause} onClick={() => socket.current?.emit('game:pauseRequest')}>{iRequestedPause ? 'PAUSE REQUESTED…' : '❚❚ PAUSE'}</button>}
         <div className={`server-pill${connected ? ' online' : ''}`}><span className="signal" />{connected ? 'ONLINE' : 'CONNECTING'}</div>
@@ -373,7 +418,7 @@ export default function App() {
         </aside>
       </div> : (!shownState || !shownInfo) && !queued ? menus
       : !shownState || !shownInfo ? <div className="lobby-stack"><section className="lobby-panel panel">
-        <div className="lobby-title"><span className="eyebrow accent">{queued?.mode === 'chaos' ? 'CHAOS · ABILITIES' : 'CLASSIC'} · LOBBY</span><h2>{welcome || 'Welcome.'}</h2><p>{queued?.mode === 'chaos' ? `Waiting for a ${queued.side === 'warden' ? 'prisoner' : 'warden'} to join.` : 'Waiting for another player.'}</p><button className="small-button ghost" onClick={leaveQueue}>◂ CHANGE {queued?.mode === 'chaos' ? 'CLASS' : 'MODE'}</button></div>
+        <div className="lobby-title"><span className="eyebrow accent">{queued?.mode === 'chaos' ? 'CHAOS · ABILITIES' : queued?.board ? `CUSTOM · ${queued.board.width} × ${queued.board.height} · ${queued.board.obstacleDensity}% WALLS` : 'CLASSIC'} · LOBBY</span><h2>{welcome || 'Welcome.'}</h2><p>{queued?.mode === 'chaos' ? `Waiting for a ${queued.side === 'warden' ? 'prisoner' : 'warden'} to join.` : queued?.mode === 'custom' ? 'Waiting for another custom mode player. Custom mode uses Classic rules.' : 'Waiting for another player.'}</p><button className="small-button ghost" onClick={leaveQueue}>◂ {queued?.mode === 'custom' ? 'CHANGE SETTINGS' : queued?.mode === 'chaos' ? 'CHANGE CLASS' : 'CHANGE MODE'}</button></div>
         <div className="lobby-list"><div className="list-heading"><span>YOUR MATCH</span><strong>1/2</strong></div><div className="lobby-player"><span className="slot">01</span>{queued?.cls ? <PixelSprite name={CLASS_INFO[queued.cls].sprite} size={36} /> : <img src="/assets/prisoner.svg" alt="" />}<strong>{pendingName.current || nickname.trim()} (you){queued?.cls ? ` · ${CLASS_INFO[queued.cls].name}` : ''}</strong></div><div className="empty-slot"><span className="slot">02</span><span className="loading-block" />Waiting for another player...</div></div>
       </section>
       {social.features.spectate && <SpectateList games={social.liveGames} onWatch={social.watch} />}
@@ -383,7 +428,7 @@ export default function App() {
           {myEmotes.length > 0 && <EmoteStrip emotes={myEmotes} readyAt={social.emoteReadyAt} onSend={social.sendEmote} />}</section>
         <aside className="sidebar"><div className="panel match-panel"><div className="panel-heading"><span className="eyebrow accent">PLAYERS</span></div><PlayerCard name={shownInfo.you.nickname} role={shownInfo.you.role} cls={shownInfo.you.cls} score={shownState.scores[shownInfo.you.nickname] ?? 0} active={myTurn} self /><div className="versus">VS</div><PlayerCard name={shownInfo.opponent.nickname} role={shownInfo.opponent.role} cls={shownInfo.opponent.cls} score={shownState.scores[shownInfo.opponent.nickname] ?? 0} active={!myTurn && shownState.status === 'active'} self={false} /></div>
           {shownState.status === 'active' ? <div className="panel turn-panel" title="At zero, the server makes a random legal move."><div className="turn-label"><span className="eyebrow accent">TIME LEFT</span></div><div className={`timer${seconds <= 3 ? ' timer-low' : ''}`}><strong>{String(seconds).padStart(2, '0')}</strong><span>SEC</span></div><div className="timer-track"><span style={{ width: `${Math.min(100, remaining / 100)}%` }} /></div></div>
-            : <div className="panel result-panel"><h2>{shownResult?.result === 'Win' ? 'You win' : shownResult?.result === 'Lost' ? 'You lose' : 'Match over'}</h2><p>{shownResult ? shownResult.reason === 'escape' ? `${shownResult.winner} escaped.` : `${shownResult.winner} caught the prisoner.` : 'Loading result…'}</p><button className="primary-button" disabled={!shownResult || !!shownVotes[shownInfo.you.nickname] } onClick={() => socket.current?.emit('game:rematchVote', true)}>{shownVotes[shownInfo.you.nickname] ? 'WAITING FOR PLAYER' : 'REMATCH'} <span>↗</span></button></div>}
+            : <div className="panel result-panel"><h2>{shownResult?.result === 'Win' ? 'You win' : shownResult?.result === 'Lost' ? 'You lose' : shownResult?.result === 'Draw' ? 'Draw' : 'Match over'}</h2><p>{shownResult ? shownResult.reason === 'stalemate' ? 'The same position occurred three times. The match is a draw.' : shownResult.reason === 'escape' ? `${shownResult.winner} escaped.` : `${shownResult.winner} caught the prisoner.` : 'Loading result…'}</p><div className="result-actions"><button className="primary-button" disabled={!shownResult || !!shownVotes[shownInfo.you.nickname] } onClick={() => socket.current?.emit('game:rematchVote', true)}>{shownVotes[shownInfo.you.nickname] ? 'WAITING FOR PLAYER' : 'REMATCH'} <span>↗</span></button><button className="small-button ghost" onClick={returnToMenu}>QUIT TO MODE SELECTION</button></div></div>}
           {social.features.chat || social.features.emotes
             ? <ChatPanel messages={social.messages} spoken={social.spoken} me={me} chatEnabled={social.features.chat} canSpeak={social.features.voice}
                 open={social.chatOpen} unread={social.unread} onOpen={social.setChatOpen} onSend={social.sendChat} inputRef={chatInput}
@@ -402,9 +447,17 @@ export default function App() {
       </div>
     </div>}
     {picking && info && <div className="ready-overlay" role="dialog" aria-modal="true" aria-label="Pick your side and class">
-      <RematchPicker picked={picking.picked} taken={picking.taken} me={info.you.nickname} side={pickSide}
+      <RematchPicker picked={picking.picked} taken={picking.taken} me={info.you.nickname} side={pickSide} wardenRequired={picking.wardenRequired}
         onSide={setPickSide} onBack={() => setPickSide(null)}
-        onLock={(cls) => pickSide && socket.current?.emit('game:pick', { side: pickSide, cls })} />
+        onLock={(side, cls) => socket.current?.emit('game:pick', { side, cls })} />
+    </div>}
+    {confirmQuit && info && shownState?.status !== 'finished' && <div className="ready-overlay" role="dialog" aria-modal="true" aria-labelledby="quit-title">
+      <div className="ready-card panel">
+        <span className="eyebrow accent">LEAVE MATCH</span>
+        <h2 id="quit-title">Quit to menu?</h2>
+        <p>Leaving now will end this match for both players and return you to mode selection.</p>
+        <div className="result-actions"><button className="primary-button" disabled={leavingMatch} onClick={returnToMenu}>{leavingMatch ? 'LEAVING…' : 'QUIT MATCH'}</button><button className="small-button ghost" disabled={leavingMatch} onClick={() => setConfirmQuit(false)}>KEEP PLAYING</button></div>
+      </div>
     </div>}
     {showHelp && info?.you.cls && <div className="ready-overlay" role="dialog" aria-modal="true" aria-label="How your class works" onClick={() => setShowHelp(false)}>
       <div className="keybind-card panel" onClick={(event) => event.stopPropagation()}>

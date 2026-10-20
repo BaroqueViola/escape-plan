@@ -4,7 +4,7 @@ export type Role = 'warden' | 'prisoner';
 export type Tile = 'free' | 'obstacle' | 'tunnel';
 export type Direction = 'up' | 'down' | 'left' | 'right';
 export interface Coordinate { readonly x: number; readonly y: number }
-export interface BoardOptions { readonly width: number; readonly height: number }
+export interface BoardOptions { readonly width: number; readonly height: number; readonly obstacleDensity?: number }
 export interface Board extends BoardOptions { readonly cells: readonly Tile[] }
 export interface GeneratedMap {
   readonly board: Board;
@@ -16,7 +16,7 @@ export interface Turn {
   readonly startedAt: number;
   readonly deadline: number;
 }
-export interface Outcome { readonly winner: PlayerId; readonly reason: 'capture' | 'escape' }
+export interface Outcome { readonly winner: PlayerId | null; readonly reason: 'capture' | 'escape' | 'stalemate' }
 interface MatchBase {
   readonly board: Board;
   readonly roles: Readonly<Record<Role, PlayerId>>;
@@ -82,6 +82,8 @@ export interface ActiveMatch extends MatchBase {
   readonly turn: Turn;
   // Stays each role has left before it must move (refilled by a move)
   readonly staysLeft: Readonly<Record<Role, number>>;
+  // Threefold repetition tracking, keyed by the complete playable state and side to move.
+  readonly repetitions?: Readonly<Record<string, number>>;
 }
 export interface FinishedMatch extends MatchBase {
   readonly status: 'finished';

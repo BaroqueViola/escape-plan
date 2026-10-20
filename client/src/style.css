@@ -14,3 +14,4 @@
 @media(max-width:620px){.topbar .pause-button{font-size:8px;padding:8px}}
 /* Pause banner: keep equal 24px gaps above and below on smaller screens (main-stage top padding is smaller there) */
 @media(max-width:900px){.pause-request{margin-top:-11px}}@media(max-width:620px){.pause-request{margin-top:-8px}}
+.result-actions{display:grid;gap:10px}

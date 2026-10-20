@@ -5,6 +5,7 @@
 .menu-heading h2{font-size:52px;margin:10px 0 0}
 .menu-cards{display:grid;gap:18px}
 .menu-cards.two{grid-template-columns:1fr 1fr}
+.menu-cards.three{grid-template-columns:repeat(3,minmax(0,1fr))}
 .menu-cards.one{grid-template-columns:1fr}
 .menu-card{display:flex;flex-direction:column;align-items:flex-start;gap:8px;text-align:left;background:#1a241e;border:1px solid #58624f;color:#f2f1df;padding:20px 22px;box-shadow:4px 4px 0 #0c1210;transition:transform .12s,box-shadow .12s,border-color .12s}
 .menu-card:hover:not(:disabled){border-color:#d9bc62;transform:translate(2px,2px);box-shadow:2px 2px 0 #0c1210}
@@ -14,6 +15,15 @@
 .menu-card.mode-chaos{background:#24122f;border-color:#ff3d7f;color:#f6eaff}
 .menu-card.mode-chaos .eyebrow{color:#ff3d7f}
 .menu-card.mode-chaos small{color:#c9b6d8}
+.custom-map-form{display:grid;grid-template-columns:1fr 1fr;gap:18px;margin-top:20px}
+.custom-map-form label{display:grid;gap:8px;color:#f2f1df;font-size:13px;font-weight:700}
+.custom-map-form label span,.custom-map-form small{color:#adbcae;font-size:11px;font-weight:400}
+.custom-map-form input[type=number]{width:100%;padding:12px;background:#111a16;border:1px solid #58624f;color:#f2f1df;font:inherit}
+.custom-map-form .density-field{grid-column:1/-1}
+.custom-map-form input[type=range]{width:100%;accent-color:#70b5a6}
+.custom-map-form .custom-map-preview{grid-column:1/-1;color:#adbcae;font-size:12px}
+.custom-map-form .primary-button{grid-column:1/-1}
+.custom-map-form .custom-save{grid-column:1/-1;width:max-content}
 .menu-card.soon{opacity:.5;box-shadow:none}
 .menu-art{display:flex;gap:10px;align-items:flex-end;min-height:80px;padding:6px 0}
 .menu-art img{width:72px;height:72px;image-rendering:pixelated}
@@ -62,7 +72,7 @@
 /* Keybind card (the "?" button) */
 .keybind-card{width:min(640px,100%);padding:24px 26px;max-height:90vh;overflow:auto}
 .keybind-card .menu-heading h2{font-size:40px}
-@media(max-width:820px){.menu-cards.two,.class-layout{grid-template-columns:1fr}.menu{padding:24px}.menu-heading h2{font-size:40px}}
+@media(max-width:820px){.menu-cards.two,.menu-cards.three,.class-layout{grid-template-columns:1fr}.menu{padding:24px}.menu-heading h2{font-size:40px}}
 
 /* The Chaos recolour sets every keycap's background; the action keys keep theirs */
 .app-shell.theme-chaos .keycap.q{background:#ff3d7f;border-color:#ffb0c8;color:#140c14}
