@@ -1,6 +1,6 @@
 # Chaos mode
 
-A second game mode next to Classic. Each side picks an anime-style class with its own ability, on a bigger 7×7 board. Turns are still 10 seconds and the server still decides everything: the client only sends requests, and the game core checks every move and ability.
+A second game mode next to Classic. Each side picks an anime-style class with its own ability, on a bigger 7×7 board. Each turn lasts 20 seconds and the server still decides everything: the client only sends requests, and the game core checks every move and ability.
 
 ## What players see
 

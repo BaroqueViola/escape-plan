@@ -4,12 +4,14 @@ import { DEFAULT_BOARD, generateMap, randomIndex, sameCell } from './map.js';
 import { failure, success, type Ability, type ActiveMatch, type Board, type BoardOptions, type ChaosState,
   type Coordinate, type Direction, type PlayerId, type Random, type Result, type Role, type Session } from './types.js';
 
-export const TURN_DURATION_MS = 10_000;
+export const TURN_DURATION_MS = 15_000;
+export const CHAOS_TURN_DURATION_MS = 20_000;
 export const VOID_DURATION_MS = 10_000; // time for the whole Void challenge (3 rounds of up to 3 s)
 export const VOID_INTRO_MS = 1_500; // the Domain Expansion title card plays first; the challenge time starts after it
 // A player may skip moving this many turns in a row, then must move
 export const MAX_STAYS = 2;
 const fullStays = { warden: MAX_STAYS, prisoner: MAX_STAYS } as const;
+const turnDurationFor = (chaos: ChaosState | undefined): number => chaos ? CHAOS_TURN_DURATION_MS : TURN_DURATION_MS;
 const positionKey = (board: Board, positions: Readonly<Record<Role, Coordinate>>, next: Role,
   staysLeft: Readonly<Record<Role, number>>, chaos: ChaosState | undefined): string => {
   const persistentChaos = chaos ? (({ events: _events, ...state }) => state)(chaos) : null;
@@ -17,7 +19,7 @@ const positionKey = (board: Board, positions: Readonly<Record<Role, Coordinate>>
     next, staysLeft, chaos: persistentChaos });
 };
 const validTime = (now: number): boolean => Number.isFinite(now) && now >= 0
-  && Number.isFinite(now + TURN_DURATION_MS);
+  && Number.isFinite(now + CHAOS_TURN_DURATION_MS);
 export function createSession(players: readonly [PlayerId, PlayerId]): Result<Session> {
   if (players.length !== 2 || players.some(p => typeof p !== 'string' || p.length === 0)
     || players[0] === players[1]) return failure('INVALID_PLAYERS');
@@ -40,7 +42,7 @@ function setup(session: Session, now: number, rng: Random, options: BoardOptions
   if (chaos && !chaos.ok) return chaos;
   return success({ ...session, match: {
     status: 'active', board: map.value.board, positions: map.value.starts,
-    roles: { warden, prisoner }, turn: { playerId: warden, startedAt: now, deadline: now + TURN_DURATION_MS },
+    roles: { warden, prisoner }, turn: { playerId: warden, startedAt: now, deadline: now + turnDurationFor(chaos?.value) },
     staysLeft: fullStays, ...(chaos ? { chaos: chaos.value } : {}),
     repetitions: { [positionKey(map.value.board, map.value.starts, 'warden', fullStays, chaos?.value)]: 1 },
   } });
@@ -95,7 +97,7 @@ function transition(session: Session, match: ActiveMatch, role: Role, change: Tu
     && board.cells[positions.prisoner.y * board.width + positions.prisoner.x] === 'tunnel';
   if (capture || escape) return finish(session, match, board, positions, chaos, capture ? 'capture' : 'escape');
   let next: Role = role === 'warden' ? 'prisoner' : 'warden';
-  let duration = TURN_DURATION_MS;
+  let duration = turnDurationFor(chaos);
   if (chaos) {
     const ended = endTurn(chaos, board, positions, role, change.used ?? null, rng);
     if (!ended.ok) return ended;
@@ -191,7 +193,7 @@ function escapeVoid(session: Session, match: ActiveMatch, role: Role, hits: read
   const after = { ...chaos, inVoid: false, events: [{ kind: 'escape', escaped } as const] };
   if (!escaped) return finish(session, match, match.board, match.positions, after, 'capture');
   return success({ ...session, match: { ...match, chaos: after,
-    turn: { playerId: match.turn.playerId, startedAt: now, deadline: now + TURN_DURATION_MS } } });
+    turn: { playerId: match.turn.playerId, startedAt: now, deadline: now + turnDurationFor(chaos) } } });
 }
 export function resolveTimeout(session: Session, now: number, rng: Random): Result<Session> {
   const match = session.match;
@@ -213,15 +215,16 @@ export function resolveTimeout(session: Session, now: number, rng: Random): Resu
     { positions: { ...match.positions, [role]: actions[draw.value]!.target } }, now, rng) : draw;
 }
 // Restart the current player's turn clock at `now` (same player, same board).
-// Used after a ready check (full 10 s) and when resuming a pause (the time that was left).
+// Uses the match's mode duration after a ready check; pauses pass their saved remainder.
 export function restartTurn(session: Session, now: number,
-  durationMs: number = TURN_DURATION_MS): Result<Session> {
+  durationMs?: number): Result<Session> {
   const match = session.match;
   if (match?.status !== 'active') return failure('NO_ACTIVE_MATCH');
   if (!validTime(now) || now < match.turn.startedAt) return failure('INVALID_TIME');
-  if (!Number.isFinite(durationMs) || durationMs <= 0 || durationMs > TURN_DURATION_MS) return failure('INVALID_TIME');
+  const duration = durationMs ?? turnDurationFor(match.chaos);
+  if (!Number.isFinite(duration) || duration <= 0 || duration > turnDurationFor(match.chaos)) return failure('INVALID_TIME');
   return success({ ...session, match: { ...match,
-    turn: { playerId: match.turn.playerId, startedAt: now, deadline: now + durationMs } } });
+    turn: { playerId: match.turn.playerId, startedAt: now, deadline: now + duration } } });
 }
 // startWhenAgreed = false only records the votes (Chaos: players pick sides first, then nextMatch)
 export function voteRematch(session: Session, playerId: PlayerId, accept: boolean,

@@ -1,6 +1,6 @@
 import { describe, expect, it, vi } from 'vitest';
 import { createSession, generateMap, legalMoves, MAX_GENERATION_ATTEMPTS, MAX_STAYS, move, nextMatch,
-  resetSession, resolveTimeout, restartTurn, startMatch, stay, tileAt, validateMap, voteRematch,
+  resetSession, resolveTimeout, restartTurn, startMatch, stay, tileAt, TURN_DURATION_MS, validateMap, voteRematch,
   type ActiveMatch, type Board, type Coordinate, type GeneratedMap, type Random,
   type Result, type Session, type Tile } from '../src/index.js';
 
@@ -136,7 +136,7 @@ describe('sessions and match setup', () => {
       expect(session.match?.status).toBe('active');
       if (session.match?.status !== 'active') throw new Error('Expected active');
       seen.add(session.match.roles.warden);
-      expect(session.match.turn).toEqual({ playerId: session.match.roles.warden, startedAt: 500, deadline: 10500 });
+      expect(session.match.turn).toEqual({ playerId: session.match.roles.warden, startedAt: 500, deadline: 15500 });
       expect(validateMap({ board: session.match.board, starts: session.match.positions })).toBe(true);
     }
     expect(seen.size).toBe(2);
@@ -163,7 +163,7 @@ describe('movement and turns', () => {
     const next = unwrap(move(input, 'alice', direction, 250));
     expect(next.match?.positions.warden).toEqual(target);
     if (next.match?.status !== 'active') throw new Error('Expected active');
-    expect(next.match.turn).toEqual({ playerId: 'bob', startedAt: 250, deadline: 10250 });
+    expect(next.match.turn).toEqual({ playerId: 'bob', startedAt: 250, deadline: 15250 });
     expect(input.match.positions.warden).toEqual({ x: 2, y: 2 });
     const after = unwrap(move(next, 'bob', 'right', 300));
     expect(after.match?.status === 'active' && after.match.turn.playerId).toBe('alice');
@@ -219,7 +219,7 @@ describe('timeout and outcomes', () => {
     for (let i = 0; i < actions.length; i++) {
       const next = unwrap(resolveTimeout(input, now, () => (i + .1) / actions.length));
       expect(next.match?.positions.warden).toEqual(actions[i]!.target);
-      expect(next.match?.status === 'active' && next.match.turn.deadline).toBe(now + 10000);
+      expect(next.match?.status === 'active' && next.match.turn.deadline).toBe(now + TURN_DURATION_MS);
     }
     expectError(resolveTimeout(input, now, () => 1), 'INVALID_RANDOM');
   });
@@ -259,7 +259,7 @@ describe('stay', () => {
     const next = unwrap(stay(input, 'alice', 250));
     if (next.match?.status !== 'active') throw new Error('Expected active');
     expect(next.match.positions).toEqual(input.match.positions);
-    expect(next.match.turn).toEqual({ playerId: 'bob', startedAt: 250, deadline: 10250 });
+    expect(next.match.turn).toEqual({ playerId: 'bob', startedAt: 250, deadline: 15250 });
     expect(next.match.staysLeft).toEqual({ warden: MAX_STAYS - 1, prisoner: MAX_STAYS });
   });
   it('allows at most two stays in a row, and a move refills them', () => {
@@ -312,7 +312,7 @@ describe('restartTurn (ready check)', () => {
     const input = freeze(fixture());
     const next = unwrap(restartTurn(input, 50_000));
     if (next.match?.status !== 'active') throw new Error('Expected active');
-    expect(next.match.turn).toEqual({ playerId: 'alice', startedAt: 50_000, deadline: 60_000 });
+    expect(next.match.turn).toEqual({ playerId: 'alice', startedAt: 50_000, deadline: 65_000 });
     expect(next.match.board).toBe(input.match.board);
     expect(next.match.positions).toEqual(input.match.positions);
     expect(input.match.turn.deadline).toBe(10100);
@@ -327,7 +327,7 @@ describe('restartTurn (ready check)', () => {
     if (next.match?.status !== 'active') throw new Error('Expected active');
     expect(next.match.turn).toEqual({ playerId: 'alice', startedAt: 50_000, deadline: 54_000 });
     expectError(restartTurn(fixture(), 50_000, 0), 'INVALID_TIME');
-    expectError(restartTurn(fixture(), 50_000, 10_001), 'INVALID_TIME');
+    expectError(restartTurn(fixture(), 50_000, 15_001), 'INVALID_TIME');
     expectError(restartTurn(fixture(), 50_000, NaN), 'INVALID_TIME');
   });
   it('rejects missing or finished matches and invalid time', () => {

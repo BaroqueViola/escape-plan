@@ -47,7 +47,7 @@ export function ModePicker({ onPick, onCustom }: { onPick: (mode: 'classic' | 'c
       <button className="menu-card mode-custom" onClick={onCustom}>
         <span className="eyebrow">CUSTOM</span><strong>Custom map</strong>
         <span className="menu-art">▦</span>
-        <small>Choose a board from 5 × 5 to 20 × 20 and set walls from 5% to 40%.</small>
+        <small>Choose a board from 5 × 5 to 20 × 20 and set walls from 5% to 30%.</small>
       </button>
     </div>
   </section>;
@@ -69,7 +69,7 @@ export function CustomMapPicker({ onStart, onSave, onBack, isHost, ready, host, 
     <form className="custom-map-form" onSubmit={(event) => { event.preventDefault(); onStart(width, height, density); }}>
       <label>Length <span>columns</span><input type="number" min={5} max={20} disabled={!ready || !isHost} value={width} onChange={(e) => setWidth(Number(e.target.value))} /></label>
       <label>Height <span>rows</span><input type="number" min={5} max={20} disabled={!ready || !isHost} value={height} onChange={(e) => setHeight(Number(e.target.value))} /></label>
-      <label className="density-field">Obstacle density <strong>{density}%</strong><input type="range" min={5} max={40} step={1} disabled={!ready || !isHost} value={density} onChange={(e) => setDensity(Number(e.target.value))} /><small>{isHost ? 'Walls are placed at random.' : 'The host sets the wall density.'}</small></label>
+      <label className="density-field">Obstacle density <strong>{density}%</strong><input type="range" min={5} max={30} step={1} disabled={!ready || !isHost} value={density} onChange={(e) => setDensity(Number(e.target.value))} /><small>{isHost ? 'Walls are placed at random.' : 'The host sets the wall density.'}</small></label>
       <div className="custom-map-preview">{width} × {height} board · {Math.floor(width * height * density / 100)} walls</div>
       {isHost && <button className="small-button custom-save" type="button" disabled={!ready} onClick={() => onSave(width, height, density)}>SAVE SETTINGS</button>}
       <button className="primary-button lock-in" type="submit" disabled={!ready}>{isHost ? 'FIND MATCH' : 'JOIN CUSTOM QUEUE'} <span>↗</span></button>

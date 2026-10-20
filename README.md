@@ -23,7 +23,7 @@ IP in `client/src/config.ts` (e.g. `http://192.168.1.23:3000`), then:
 
 - **Server computer:** `npm start`. The admin page
   (`http://localhost:3000/admin.html`) opens automatically to view connected
-  clients and reset scores; set `ADMIN_PASSWORD` before starting the server.
+  clients, reset scores, or close the server; set `ADMIN_PASSWORD` before starting the server.
   Set `NO_OPEN=1` to skip opening the browser.
 - **Each player computer:** `npm run dev:client`, then open
   `http://localhost:5173`. Players enter nicknames, and the server pairs them
@@ -89,7 +89,8 @@ starting cells are free, distinct, and have a legal opening move.
 
 The engine never reads the clock or schedules a timer. `now` is a finite,
 nonnegative timestamp in milliseconds; active actions cannot predate the current
-turn's start. Each turn lasts 10,000 milliseconds. A move exactly at the deadline
+turn's start. Classic and custom-map turns last 15,000 milliseconds; Chaos turns
+last 20,000 milliseconds. Custom maps support 5%–30% obstacles. A move exactly at the deadline
 is rejected with `TURN_EXPIRED`; a timeout exactly at the deadline is accepted.
 An early timeout returns `TIMEOUT_NOT_DUE` without drawing randomness or changing
 state. Random generators must return finite values in `[0, 1)`.

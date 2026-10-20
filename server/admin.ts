@@ -46,5 +46,11 @@ export function registerAdmin(io: GameServer): void {
         done(true);
       }
     });
+
+    socket.on('admin:shutdown', (done) => {
+      if (typeof done === 'function') done(true);
+      console.log('[Admin] Server shutdown requested');
+      setTimeout(() => io.close(() => process.exit(0)), 200);
+    });
   });
 }

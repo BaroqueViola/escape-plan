@@ -408,7 +408,7 @@ export function registerGame(io: GameServer, socket: GameSocket): void {
       return;
     }
 
-    // Both ready: give the first player a full 10 seconds from now
+    // Both ready: use this mode's full turn duration from now
     const restarted = restartTurn(g.session, Date.now());
     if (!restarted.ok) {
       console.error(`Could not start the turn in game ${g.id}: ${restarted.error.code}`);
@@ -522,7 +522,7 @@ export function registerGame(io: GameServer, socket: GameSocket): void {
       return;
     }
     g.session = result.value;
-    afterTurn(io, g); // the other player's 10 s starts now, or the match ends
+    afterTurn(io, g); // the other player's mode-specific turn starts now, or the match ends
   });
 
   socket.on('game:stay', () => {

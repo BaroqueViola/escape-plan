@@ -58,7 +58,7 @@ export const QueueRequest = z.discriminatedUnion('mode', [
 export const CustomMapSettingsRequest = z.object({
   width: z.number().int().min(5).max(20),
   height: z.number().int().min(5).max(20),
-  obstacleDensity: z.number().int().min(5).max(40),
+  obstacleDensity: z.number().int().min(5).max(30),
 });
 
 // Answer to the rematch button: true = accept, false = decline

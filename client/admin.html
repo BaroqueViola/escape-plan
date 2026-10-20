@@ -340,6 +340,18 @@
           </div>
           <p id="reset-status" class="status" role="status"></p>
 
+          <div class="panel-heading"><span class="eyebrow accent">SERVER</span></div>
+          <p>Close the server and disconnect all players. Start it again from its terminal when you are ready.</p>
+          <button id="shutdown" class="primary-button danger-button" type="button">CLOSE SERVER <span>⏻</span></button>
+          <div id="shutdown-confirm" class="confirm" hidden>
+            <p>Close the server and disconnect all players now?</p>
+            <div>
+              <button id="shutdown-yes" class="primary-button danger-button" type="button">YES, CLOSE SERVER</button>
+              <button id="shutdown-no" class="ghost-button" type="button">CANCEL</button>
+            </div>
+          </div>
+          <p id="shutdown-status" class="status" role="status"></p>
+
           <div class="log">
             <div class="panel-heading"><span class="eyebrow accent">ACTIVITY</span><span>NEWEST FIRST</span></div>
             <ol id="log"><li class="empty">No activity yet.</li></ol>
@@ -384,6 +396,7 @@
     const form = $('login-form'), passwordInput = $('password'), errorText = $('error');
     const pill = $('pill'), pillText = $('pill-text');
     const resetButton = $('reset'), confirmBox = $('confirm'), resetStatus = $('reset-status');
+    const shutdownButton = $('shutdown'), shutdownConfirm = $('shutdown-confirm'), shutdownStatus = $('shutdown-status');
     const logList = $('log');
     let socket = null;
 
@@ -858,6 +871,31 @@
         confirmBox.hidden = true;
         resetButton.hidden = false;
         resetStatus.textContent = ok ? `✓ Game reset at ${time()}` : 'Reset failed';
+      });
+    });
+
+    shutdownButton.addEventListener('click', () => {
+      shutdownButton.hidden = true;
+      shutdownConfirm.hidden = false;
+      $('shutdown-no').focus();
+    });
+    $('shutdown-no').addEventListener('click', () => {
+      shutdownConfirm.hidden = true;
+      shutdownButton.hidden = false;
+    });
+    $('shutdown-yes').addEventListener('click', () => {
+      if (!socket) return;
+      $('shutdown-yes').disabled = true;
+      shutdownStatus.textContent = 'Closing the server…';
+      socket.emit('admin:shutdown', (ok) => {
+        if (ok) {
+          shutdownStatus.textContent = 'Server closed. You can close this page.';
+          shutdownConfirm.hidden = true;
+          setPill(false, 'SERVER CLOSED');
+        } else {
+          $('shutdown-yes').disabled = false;
+          shutdownStatus.textContent = 'Could not close the server.';
+        }
       });
     });
   </script>

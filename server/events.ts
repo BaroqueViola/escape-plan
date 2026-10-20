@@ -229,6 +229,7 @@ export interface ClientToServerEvents {
   'player:customSettings:get': () => void;
   'player:customSettings:set': (settings: unknown, done: (result: { ok: boolean; reason?: string }) => void) => void;
   'admin:reset': (done: (ok: boolean) => void) => void; // admin asking for reset
+  'admin:shutdown': (done: (ok: boolean) => void) => void; // authenticated admin closing the server
 
   'game:ready': () => void; // player pressed the Ready button
   'game:pauseRequest': () => void; // ask the rival to pause

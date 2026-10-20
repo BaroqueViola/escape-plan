@@ -29,7 +29,7 @@ function game(prisonerClass: ClassId, grid: string[], turn: 'alice' | 'bob' = 'b
     status: 'active', board: { width: grid[0]!.length, height: grid.length, cells },
     roles: { warden: 'alice', prisoner: 'bob' },
     positions: { warden: positions.warden!, prisoner: positions.prisoner! },
-    turn: { playerId: turn, startedAt: 100, deadline: 10100 },
+    turn: { playerId: turn, startedAt: 100, deadline: 20100 },
     staysLeft: { warden: 2, prisoner: 2 },
     chaos: { classes: { warden: 'gojo', prisoner: prisonerClass }, stunned: { warden: 0, prisoner: 0 },
       cooldown: { warden: 0, prisoner: 0 }, cracks: [], bar: 0, charges: 0, clones: [], fingers: [],

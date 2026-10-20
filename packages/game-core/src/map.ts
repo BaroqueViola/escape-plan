@@ -2,6 +2,8 @@ import { failure, success, type Board, type BoardOptions, type Coordinate, type 
   type GeneratedMap, type Random, type Result, type Role, type Tile } from './types.js';
 
 export const DEFAULT_BOARD: BoardOptions = Object.freeze({ width: 5, height: 5 });
+// Dense custom maps can fail the reachability, escape-route, and race-distance
+// checks many times before a valid random layout appears.
 export const MAX_GENERATION_ATTEMPTS = 1_000;
 const steps: Readonly<Record<Direction, Coordinate>> = {
   up: { x: 0, y: -1 }, down: { x: 0, y: 1 }, left: { x: -1, y: 0 }, right: { x: 1, y: 0 },
@@ -135,6 +137,7 @@ export function validDimensions({ width, height }: BoardOptions): boolean {
     && width >= 5 && height >= 5 && width <= 20 && height <= 20 && Number.isSafeInteger(width * height);
 }
 export function validateMap({ board, starts }: GeneratedMap, obstacleDensity = 20): boolean {
+  if (!Number.isInteger(obstacleDensity) || obstacleDensity < 5 || obstacleDensity > 30) return false;
   if (!validDimensions(board) || board.cells.length !== board.width * board.height) return false;
   const obstacles = board.cells.filter(t => t === 'obstacle').length;
   const tunnels = board.cells.filter(t => t === 'tunnel').length;
@@ -166,7 +169,7 @@ export function randomIndex(rng: Random, length: number): Result<number> {
 }
 export function generateMap(rng: Random, options: BoardOptions = DEFAULT_BOARD): Result<GeneratedMap> {
   const density = options.obstacleDensity ?? 20;
-  if (!validDimensions(options) || !Number.isInteger(density) || density < 5 || density > 40) return failure('INVALID_DIMENSIONS');
+  if (!validDimensions(options) || !Number.isInteger(density) || density < 5 || density > 30) return failure('INVALID_DIMENSIONS');
   const { width, height } = options;
   const count = width * height;
   const obstacleCount = Math.floor(count * density / 100);
@@ -189,5 +192,6 @@ export function generateMap(rng: Random, options: BoardOptions = DEFAULT_BOARD):
     };
     if (validateMap(map, density)) return success(map);
   }
+
   return failure('GENERATION_FAILED');
 }
