@@ -105,6 +105,7 @@ export function registerLobby(io: GameServer, socket: GameSocket): void {
     const request = parsed.data;
     let pick: QueuePick;
     if (request.mode === 'classic') pick = { mode: 'classic' };
+    else if (request.mode === 'fog') pick = { mode: 'fog' };
     else if (request.mode === 'custom') pick = { mode: 'custom', board: { ...customMapSettings } };
     else pick = { mode: 'chaos', side: request.side, cls: request.cls as Extract<QueuePick, { mode: 'chaos' }>['cls'] };
     if (pick.mode === 'chaos' && chaosSideTaken(io, socket.id, pick.side)) {

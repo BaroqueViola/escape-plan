@@ -21,7 +21,7 @@ export function removeJoinedPlayer(id: string): boolean {
 }
 
 // What a player queued for: Classic, or Chaos with a side and class
-export type QueuePick = { mode: 'classic' } | { mode: 'custom'; board: CustomMapSettings } | { mode: 'chaos'; side: Role; cls: ClassId };
+export type QueuePick = { mode: 'classic' | 'fog' } | { mode: 'custom'; board: CustomMapSettings } | { mode: 'chaos'; side: Role; cls: ClassId };
 
 // Players looking for a match: socket.id -> pick, oldest first
 export const queue = new Map<string, QueuePick>();

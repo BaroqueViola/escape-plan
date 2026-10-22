@@ -11,7 +11,8 @@ export interface GameState {
   mode: ModeName;
   classes: Record<Role, ClassId> | null; // Chaos: each side's class; null in Classic
   staysLeft: Record<Role, number> | null; // stays left before each side must move; null once finished
-  board: { width: number; height: number; cells: readonly Tile[] }; // row by row
+  board: { width: number; height: number; cells: readonly (Tile | 'fog')[] }; // row by row; hidden terrain is not sent
+  visibleTiles: readonly boolean[]; // per-viewer visibility, all true outside Fog of War
   positions: Record<Role, Coordinate>;
   roles: Record<string, Role>; // nickname -> role
   scores: Record<string, number>; // nickname -> score
@@ -225,6 +226,7 @@ export interface ServerToClientEvents {
 export interface ClientToServerEvents {
   'player:join': (nickname: unknown) => void;
   'player:queue': (request: unknown) => void; // classic, custom, or chaos with side and class
+  'player:playAi': () => void; // start a solo game against the server AI
   'player:leaveQueue': () => void; // back to the mode menu
   'player:customSettings:get': () => void;
   'player:customSettings:set': (settings: unknown, done: (result: { ok: boolean; reason?: string }) => void) => void;

@@ -6,6 +6,8 @@
 .menu-cards{display:grid;gap:18px}
 .menu-cards.two{grid-template-columns:1fr 1fr}
 .menu-cards.three{grid-template-columns:repeat(3,minmax(0,1fr))}
+.menu-cards.four{grid-template-columns:repeat(4,minmax(0,1fr))}
+.menu-cards.five{grid-template-columns:repeat(5,minmax(0,1fr))}
 .menu-cards.one{grid-template-columns:1fr}
 .menu-card{display:flex;flex-direction:column;align-items:flex-start;gap:8px;text-align:left;background:#1a241e;border:1px solid #58624f;color:#f2f1df;padding:20px 22px;box-shadow:4px 4px 0 #0c1210;transition:transform .12s,box-shadow .12s,border-color .12s}
 .menu-card:hover:not(:disabled){border-color:#d9bc62;transform:translate(2px,2px);box-shadow:2px 2px 0 #0c1210}
@@ -72,7 +74,7 @@
 /* Keybind card (the "?" button) */
 .keybind-card{width:min(640px,100%);padding:24px 26px;max-height:90vh;overflow:auto}
 .keybind-card .menu-heading h2{font-size:40px}
-@media(max-width:820px){.menu-cards.two,.menu-cards.three,.class-layout{grid-template-columns:1fr}.menu{padding:24px}.menu-heading h2{font-size:40px}}
+@media(max-width:1100px){.menu-cards.five{grid-template-columns:repeat(3,minmax(0,1fr))}}@media(max-width:1000px){.menu-cards.four{grid-template-columns:repeat(2,minmax(0,1fr))}}@media(max-width:820px){.menu-cards.two,.menu-cards.three,.menu-cards.five,.class-layout{grid-template-columns:1fr}.menu{padding:24px}.menu-heading h2{font-size:40px}}@media(max-width:520px){.menu-cards.four{grid-template-columns:1fr}}
 
 /* The Chaos recolour sets every keycap's background; the action keys keep theirs */
 .app-shell.theme-chaos .keycap.q{background:#ff3d7f;border-color:#ffb0c8;color:#140c14}

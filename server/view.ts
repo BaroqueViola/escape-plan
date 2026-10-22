@@ -64,15 +64,33 @@ export function toGameState(session: Session, names: Names, now: number, kind: G
   const m = session.match;
   if (!m) return null;
   const chaos = chaosView(m, viewer);
+  const fogged = kind.mode === 'fog' && viewer !== 'all' && viewer !== 'public';
+  const ownRole = viewer === 'warden' || viewer === 'prisoner' ? viewer : null;
+  const ownPosition = ownRole ? m.positions[ownRole] : null;
+  const visibleTiles = m.board.cells.map((_, index) => {
+    if (!fogged || !ownPosition) return true;
+    const x = index % m.board.width;
+    const y = Math.floor(index / m.board.width);
+    return Math.max(Math.abs(x - ownPosition.x), Math.abs(y - ownPosition.y)) <= 1;
+  });
+  const positions: Record<Role, Coordinate> = !chaos ? { ...m.positions } : chaos.view.blind ? { warden: { x: 0, y: 0 }, prisoner: chaos.prisoner }
+      : { warden: m.positions.warden, prisoner: chaos.prisoner };
+  if (fogged && ownRole) {
+    const otherRole: Role = ownRole === 'warden' ? 'prisoner' : 'warden';
+    const other = positions[otherRole];
+    if (Math.max(Math.abs(other.x - ownPosition!.x), Math.abs(other.y - ownPosition!.y)) > 1) {
+      positions[otherRole] = { x: -1, y: -1 };
+    }
+  }
   return {
     mode: kind.mode,
     classes: kind.classes,
     staysLeft: m.status === 'active' ? m.staysLeft : null,
     board: { width: m.board.width, height: m.board.height,
-      cells: chaos?.view.blind ? m.board.cells.map(() => 'free' as const) : m.board.cells },
-    positions: !chaos ? m.positions
-      : chaos.view.blind ? { warden: { x: 0, y: 0 }, prisoner: chaos.prisoner }
-      : { warden: m.positions.warden, prisoner: chaos.prisoner },
+      cells: chaos?.view.blind ? m.board.cells.map(() => 'free' as const)
+        : m.board.cells.map((tile, index) => fogged && !visibleTiles[index] ? 'fog' as const : tile) },
+    visibleTiles,
+    positions,
     roles: { [nameOf(names, m.roles.warden)]: 'warden', [nameOf(names, m.roles.prisoner)]: 'prisoner' },
     scores: scoresByName(session, names),
     status: m.status,

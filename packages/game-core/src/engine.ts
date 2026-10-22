@@ -4,7 +4,7 @@ import { DEFAULT_BOARD, generateMap, randomIndex, sameCell } from './map.js';
 import { failure, success, type Ability, type ActiveMatch, type Board, type BoardOptions, type ChaosState,
   type Coordinate, type Direction, type PlayerId, type Random, type Result, type Role, type Session } from './types.js';
 
-export const TURN_DURATION_MS = 15_000;
+export const TURN_DURATION_MS = 10_000;
 export const CHAOS_TURN_DURATION_MS = 20_000;
 export const VOID_DURATION_MS = 10_000; // time for the whole Void challenge (3 rounds of up to 3 s)
 export const VOID_INTRO_MS = 1_500; // the Domain Expansion title card plays first; the challenge time starts after it

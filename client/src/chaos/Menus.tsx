@@ -30,10 +30,10 @@ function Heading({ eyebrow, title, onBack }: { eyebrow: string; title: string; o
   </div>;
 }
 
-export function ModePicker({ onPick, onCustom }: { onPick: (mode: 'classic' | 'chaos') => void; onCustom: () => void }) {
+export function ModePicker({ onPick, onCustom, onAi }: { onPick: (mode: 'classic' | 'chaos' | 'fog') => void; onCustom: () => void; onAi: () => void }) {
   return <section className="menu panel">
     <Heading eyebrow="MODE" title="How do you want to play?" />
-    <div className="menu-cards three">
+    <div className="menu-cards five">
       <button className="menu-card mode-classic" onClick={() => onPick('classic')}>
         <span className="eyebrow">CLASSIC</span><strong>Classic</strong>
         <span className="menu-art"><img src="/assets/prisoner.svg" alt="" /><img src="/assets/warden.svg" alt="" /></span>
@@ -44,10 +44,20 @@ export function ModePicker({ onPick, onCustom }: { onPick: (mode: 'classic' | 'c
         <span className="menu-art"><PixelSprite name="naruto" size={72} /><PixelSprite name="gojo" size={72} /></span>
         <small>7 × 7 board. Pick a class with its own abilities.</small>
       </button>
+      <button className="menu-card mode-fog" onClick={() => onPick('fog')}>
+        <span className="eyebrow">FOG OF WAR</span><strong>Fog of war</strong>
+        <span className="menu-art">◌</span>
+        <small>Classic rules. See only tiles within one tile of your player.</small>
+      </button>
       <button className="menu-card mode-custom" onClick={onCustom}>
         <span className="eyebrow">CUSTOM</span><strong>Custom map</strong>
         <span className="menu-art">▦</span>
         <small>Choose a board from 5 × 5 to 20 × 20 and set walls from 5% to 30%.</small>
+      </button>
+      <button className="menu-card mode-ai" onClick={onAi}>
+        <span className="eyebrow">SOLO</span><strong>VS AI</strong>
+        <span className="menu-art">⌖</span>
+        <small>Play against an AI player</small>
       </button>
     </div>
   </section>;

@@ -45,9 +45,10 @@ function legalDirections(state: GameState | null, info: MatchInfo | null): Direc
     const x = from.x + delta.x;
     const y = from.y + delta.y;
     if (x < 0 || y < 0 || x >= state.board.width || y >= state.board.height) return false;
-    const tile = state.board.cells[y * state.board.width + x];
+    const index = y * state.board.width + x;
+    const tile = state.board.cells[index];
     if (info.you.role === 'prisoner' && state.chaos?.clones.some((c) => c.x === x && c.y === y)) return false; // clones block Naruto
-    return tile === 'free' || (tile === 'tunnel' && info.you.role === 'prisoner');
+    return !(state.visibleTiles?.[index] ?? true) || tile === 'free' || (tile === 'tunnel' && info.you.role === 'prisoner');
   });
 }
 
@@ -89,16 +90,17 @@ function Board({ state, info, legal, chaos }: { state: GameState; info: MatchInf
         const x = index % state.board.width;
         const y = Math.floor(index / state.board.width);
         const id = `${x},${y}`;
+        const visible = state.visibleTiles?.[index] ?? true;
         const warden = state.positions.warden.x === x && state.positions.warden.y === y;
         const prisoner = state.positions.prisoner.x === x && state.positions.prisoner.y === y;
         const clone = at(c?.clones, x, y);
         const wardenClone = at(c?.wardenClones, x, y);
         const pending = chaos?.pending.find((p) => p.x === x && p.y === y);
         const mark = chaos?.marks.get(id);
-        const label = `${tile === 'free' ? 'Floor' : tile === 'obstacle' ? 'Wall' : 'Tunnel'}, column ${x + 1}, row ${y + 1}${warden ? ', warden' : ''}${prisoner ? hidden ? ', Naruto' : ', prisoner' : ''}${clone ? ', Naruto' + (hidden ? '' : ' clone') : ''}${at(c?.fingers, x, y) ? ', finger' : ''}${targets.has(id) ? ', legal destination' : ''}`;
-        return <div key={index} className={`tile tile-${tile}${targets.has(id) ? ' tile-legal' : ''}${mark ? ` ${mark}` : ''}${at(c?.cracks, x, y) ? ' cracked' : ''}`} title={label}
+        const label = visible ? `${tile === 'free' ? 'Floor' : tile === 'obstacle' ? 'Wall' : 'Tunnel'}, column ${x + 1}, row ${y + 1}${warden ? ', warden' : ''}${prisoner ? hidden ? ', Naruto' : ', prisoner' : ''}${clone ? ', Naruto' + (hidden ? '' : ' clone') : ''}${at(c?.fingers, x, y) ? ', finger' : ''}${targets.has(id) ? ', legal destination' : ''}` : `Fog, column ${x + 1}, row ${y + 1}`;
+        return <div key={index} className={`tile ${visible ? `tile-${tile}` : 'tile-fog'}${targets.has(id) ? ' tile-legal' : ''}${mark ? ` ${mark}` : ''}${at(c?.cracks, x, y) ? ' cracked' : ''}`} title={label}
           onClick={mark && chaos?.onTile ? () => chaos.onTile?.(x, y) : undefined}>
-          <img className="terrain" src={`/assets/${tile}${terrain}.svg`} alt="" />
+          <img className="terrain" src={`/assets/${visible ? tile : 'free'}${terrain}.svg`} alt="" />
           {at(c?.fingers, x, y) && <span className="finger" />}
           {clone && <><img className={`character prisoner${hidden ? '' : ' clone'}`} src={characterSrc('prisoner', state.classes?.prisoner)} alt="" />{clone.direction && <span className={`clone-arrow ${clone.direction}`}>{ARROW[clone.direction]}</span>}</>}
           {pending && <><img className="character prisoner clone pending" src={characterSrc('prisoner', state.classes?.prisoner)} alt="" /><span className={`clone-arrow ${pending.direction ?? 'none'}`}>{pending.direction ? ARROW[pending.direction] : '?'}</span></>}
@@ -278,7 +280,7 @@ export default function App() {
     socket.current.emit('player:join', value);
   }
   // Classic, or Chaos with a side and class: join the queue for that mode
-  function queueFor(mode: 'classic' | 'chaos', side?: Role, cls?: ClassId) {
+  function queueFor(mode: 'classic' | 'chaos' | 'fog', side?: Role, cls?: ClassId) {
     setNotice('');
     socket.current?.emit('player:queue', mode === 'classic' ? { mode } : { mode, side, cls });
   }
@@ -367,8 +369,8 @@ export default function App() {
   // Chaos turns the whole page purple: from picking Chaos in the menu, through the queue and the game
   const chaosTheme = info ? info.mode === 'chaos' : watching ? watching.mode === 'chaos'
     : queued ? queued.mode === 'chaos' : menu === 'chaos' || menu === 'side' || menu === 'class';
-  const modeLabel = chaosTheme ? 'CHAOS · ABILITIES' : queued?.board ? 'CUSTOM MAP' : 'CLASSIC';
-  const menus = menu === 'mode' ? <ModePicker onPick={(mode) => mode === 'classic' ? queueFor('classic') : setMenu('chaos')} onCustom={() => setMenu('custom')} />
+  const modeLabel = chaosTheme ? 'CHAOS · ABILITIES' : info?.mode === 'ai' ? 'VS AI' : queued?.mode === 'fog' ? 'FOG OF WAR' : queued?.board ? 'CUSTOM MAP' : 'CLASSIC';
+  const menus = menu === 'mode' ? <ModePicker onPick={(mode) => mode === 'chaos' ? setMenu('chaos') : queueFor(mode)} onCustom={() => setMenu('custom')} onAi={() => socket.current?.emit('player:playAi')} />
     : menu === 'custom' ? <CustomMapPicker onStart={queueCustom} onSave={saveCustomSettings} onBack={() => setMenu('mode')} isHost={customSettings?.isHost ?? false} ready={customSettings !== null} host={customSettings?.host ?? null} board={customSettings?.board ?? { width: 5, height: 5, obstacleDensity: 20 }} />
     : menu === 'chaos' ? <ChaosModePicker onPick={() => setMenu('side')} onBack={() => setMenu('mode')} />
     : menu === 'side' || pickSide === null ? <SidePicker onPick={(side) => { setPickSide(side); setMenu('class'); }} onBack={() => setMenu('chaos')} />
@@ -428,7 +430,7 @@ export default function App() {
           {myEmotes.length > 0 && <EmoteStrip emotes={myEmotes} readyAt={social.emoteReadyAt} onSend={social.sendEmote} />}</section>
         <aside className="sidebar"><div className="panel match-panel"><div className="panel-heading"><span className="eyebrow accent">PLAYERS</span></div><PlayerCard name={shownInfo.you.nickname} role={shownInfo.you.role} cls={shownInfo.you.cls} score={shownState.scores[shownInfo.you.nickname] ?? 0} active={myTurn} self /><div className="versus">VS</div><PlayerCard name={shownInfo.opponent.nickname} role={shownInfo.opponent.role} cls={shownInfo.opponent.cls} score={shownState.scores[shownInfo.opponent.nickname] ?? 0} active={!myTurn && shownState.status === 'active'} self={false} /></div>
           {shownState.status === 'active' ? <div className="panel turn-panel" title="At zero, the server makes a random legal move."><div className="turn-label"><span className="eyebrow accent">TIME LEFT</span></div><div className={`timer${seconds <= 3 ? ' timer-low' : ''}`}><strong>{String(seconds).padStart(2, '0')}</strong><span>SEC</span></div><div className="timer-track"><span style={{ width: `${Math.min(100, remaining / 100)}%` }} /></div></div>
-            : <div className="panel result-panel"><h2>{shownResult?.result === 'Win' ? 'You win' : shownResult?.result === 'Lost' ? 'You lose' : shownResult?.result === 'Draw' ? 'Draw' : 'Match over'}</h2><p>{shownResult ? shownResult.reason === 'stalemate' ? 'The same position occurred three times. The match is a draw.' : shownResult.reason === 'escape' ? `${shownResult.winner} escaped.` : `${shownResult.winner} caught the prisoner.` : 'Loading result…'}</p><div className="result-actions"><button className="primary-button" disabled={!shownResult || !!shownVotes[shownInfo.you.nickname] } onClick={() => socket.current?.emit('game:rematchVote', true)}>{shownVotes[shownInfo.you.nickname] ? 'WAITING FOR PLAYER' : 'REMATCH'} <span>↗</span></button><button className="small-button ghost" onClick={returnToMenu}>QUIT TO MODE SELECTION</button></div></div>}
+            : <div className="panel result-panel"><h2>{shownResult?.result === 'Win' ? 'You win' : shownResult?.result === 'Lost' ? 'You lose' : shownResult?.result === 'Draw' ? 'Draw' : 'Match over'}</h2><p>{shownResult ? shownResult.reason === 'stalemate' ? 'The same position occurred three times. The match is a draw.' : shownResult.reason === 'escape' ? `${shownResult.winner} escaped.` : `${shownResult.winner} caught the prisoner.` : 'Loading result…'}</p><div className="result-actions"><button className="primary-button" disabled={!shownResult || (shownInfo.mode !== 'ai' && !!shownVotes[shownInfo.you.nickname])} onClick={() => socket.current?.emit('game:rematchVote', true)}>{shownInfo.mode === 'ai' ? 'NEXT ROUND' : shownVotes[shownInfo.you.nickname] ? 'WAITING FOR PLAYER' : 'REMATCH'} <span>↗</span></button><button className="small-button ghost" onClick={returnToMenu}>QUIT TO MODE SELECTION</button></div></div>}
           {social.features.chat || social.features.emotes
             ? <ChatPanel messages={social.messages} spoken={social.spoken} me={me} chatEnabled={social.features.chat} canSpeak={social.features.voice}
                 open={social.chatOpen} unread={social.unread} onOpen={social.setChatOpen} onSend={social.sendChat} inputRef={chatInput}

@@ -26,12 +26,14 @@ import { AbilityRequest, ClassPick, Direction, PauseAnswer, RematchVote } from '
 import { players, queue } from './state.js';
 import { toGameState, toMatchInfo, toMatchResult, toRematchVotes, type GameKind, type Names, type Viewer } from './view.js';
 import { BOARDS, type ModeName } from './modes.js';
+import { chooseAiMove } from './ai.js';
 import { addFeed, endSpectating, sendSpectatorState, spectatorsOf, startGameSocial, wasKicked } from './social.js';
 
 // One running game between two players
 export interface Game {
   id: string;
   mode: ModeName; // Classic or Chaos; also decides chat, emotes, spectating, voice
+  aiPlayerId: PlayerId | null;
   boardOptions: import('../packages/game-core/src/index.js').BoardOptions;
   classes: Record<Role, ClassId> | null; // Chaos: the class on each side; null in Classic
   picking: Map<PlayerId, { side: Role; cls: ClassId }> | null; // Chaos rematch: side/class picks so far
@@ -154,8 +156,29 @@ function startTimer(io: GameServer, g: Game): void {
   const match = g.session.match;
   if (match?.status !== 'active') return;
 
+  if (g.aiPlayerId !== null && match.turn.playerId === g.aiPlayerId) {
+    g.timer = setTimeout(() => onAiTurn(io, g), 650);
+    return;
+  }
+
   const delay = Math.max(0, match.turn.deadline - Date.now());
   g.timer = setTimeout(() => onTimeout(io, g), delay);
+}
+
+function onAiTurn(io: GameServer, g: Game): void {
+  g.timer = null;
+  if (games.get(g.id) !== g || !g.aiPlayerId) return;
+  const match = g.session.match;
+  if (match?.status !== 'active' || match.turn.playerId !== g.aiPlayerId) return;
+  const role: Role = match.roles.warden === g.aiPlayerId ? 'warden' : 'prisoner';
+  const result = move(g.session, g.aiPlayerId, chooseAiMove(match.board, match.positions, role), Date.now(), rng);
+  if (!result.ok) {
+    console.error(`AI move failed in game ${g.id}: ${result.error.code}`);
+    startTimer(io, g);
+    return;
+  }
+  g.session = result.value;
+  afterTurn(io, g);
 }
 
 function onTimeout(io: GameServer, g: Game): void {
@@ -228,7 +251,7 @@ function beginMatch(io: GameServer, g: Game, needReady = false): void {
 
   if (needReady) {
     cancelTimer(g);
-    g.ready = new Set();
+    g.ready = new Set(g.aiPlayerId ? [g.aiPlayerId] : []);
     sendReadyStatus(io, g);
     return; // the timer starts in the game:ready handler
   }
@@ -269,6 +292,11 @@ export function matchmake(io: GameServer): void {
       startGame(io, classicPair[0], classicPair[1], 'classic', null);
       continue;
     }
+    const fog = waiting.filter(([ , p]) => p.mode === 'fog');
+    if (fog.length >= 2) {
+      startGame(io, fog[0]![0], fog[1]![0], 'fog', null);
+      continue;
+    }
     const custom = waiting.filter((entry): entry is [PlayerId, Extract<import('./state.js').QueuePick, { mode: 'custom' }>] => entry[1].mode === 'custom');
     if (custom.length >= 2) {
       startGame(io, custom[0]![0], custom[1]![0], 'classic', null, custom[0]![1].board);
@@ -285,9 +313,10 @@ export function matchmake(io: GameServer): void {
 }
 
 // In Chaos `a` plays warden; in Classic the core picks the warden at random
-function startGame(io: GameServer, a: PlayerId, b: PlayerId, mode: ModeName, classes: Record<Role, ClassId> | null, boardOptions = BOARDS[mode]): void {
+function startGame(io: GameServer, a: PlayerId, b: PlayerId, mode: ModeName, classes: Record<Role, ClassId> | null, boardOptions = BOARDS[mode], aiPlayerId: PlayerId | null = null): void {
   const created = createSession([a, b]);
-  const started = created.ok ? startMatch(created.value, Date.now(), rng, boardOptions, mode === 'chaos' ? a : undefined, classes ?? undefined) : created;
+  const forcedWarden = mode === 'chaos' ? a : mode === 'ai' ? (rng() < 0.5 ? a : b) : undefined;
+  const started = created.ok ? startMatch(created.value, Date.now(), rng, boardOptions, forcedWarden, classes ?? undefined) : created;
   if (!started.ok) {
     console.error(`Could not start a match: ${started.error.code}`);
     for (const id of [a, b]) { // don't retry the same pair forever: back to the mode menu
@@ -301,11 +330,12 @@ function startGame(io: GameServer, a: PlayerId, b: PlayerId, mode: ModeName, cla
   const g: Game = {
     id: String(nextGameId++),
     mode,
+    aiPlayerId,
     boardOptions,
     classes,
     picking: null,
     session: started.value,
-    names: { [a]: players.get(a) ?? a, [b]: players.get(b) ?? b },
+    names: { [a]: aiPlayerId === a ? 'AI' : players.get(a) ?? a, [b]: aiPlayerId === b ? 'AI' : players.get(b) ?? b },
     timer: null,
     ready: null,
     pauseRequest: null,
@@ -319,6 +349,11 @@ function startGame(io: GameServer, a: PlayerId, b: PlayerId, mode: ModeName, cla
   startGameSocial(io, g); // stops spectating, sends chat/emote features
   feedPicks(io, g);
   beginMatch(io, g, true); // new pair: wait for both to press Ready
+}
+
+function startAiGame(io: GameServer, humanId: PlayerId): void {
+  const aiId = `ai:${nextGameId}`;
+  startGame(io, humanId, aiId, 'ai', null, BOARDS.ai, aiId);
 }
 
 // ---- Admin live feed: class picks, abilities and Void results ----------------
@@ -398,6 +433,15 @@ export function resetGame(io: GameServer): void {
 }
 
 export function registerGame(io: GameServer, socket: GameSocket): void {
+  socket.on('player:playAi', () => {
+    if (!players.has(socket.id) || gameOf.has(socket.id)) {
+      socket.emit('player:rejected', 'Join the lobby before starting a VS AI game');
+      return;
+    }
+    queue.delete(socket.id);
+    startAiGame(io, socket.id);
+  });
+
   socket.on('game:ready', () => {
     const g = gameOf.get(socket.id);
     if (!g || g.ready === null) return; // not in a ready check: nothing to do
@@ -623,6 +667,19 @@ export function registerGame(io: GameServer, socket: GameSocket): void {
     const g = gameOf.get(socket.id);
     if (!g) {
       socket.emit('game:rejected', 'You are not in a match');
+      return;
+    }
+
+    if (g.mode === 'ai') {
+      if (!vote.data || g.session.match?.status !== 'finished' || !g.aiPlayerId) return;
+      const warden = g.session.match.roles.prisoner;
+      const next = nextMatch(g.session, Date.now(), rng, warden, g.boardOptions);
+      if (!next.ok) {
+        socket.emit('game:rejected', REASONS[next.error.code]);
+        return;
+      }
+      g.session = next.value;
+      beginMatch(io, g);
       return;
     }
 

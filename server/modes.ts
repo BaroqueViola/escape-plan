@@ -4,7 +4,7 @@
 
 import type { BoardOptions } from '../packages/game-core/src/index.js';
 
-export type ModeName = 'classic' | 'chaos';
+export type ModeName = 'classic' | 'chaos' | 'fog' | 'ai';
 
 export interface ModeFeatures {
   chat: boolean; // players and spectators can type to each other
@@ -16,12 +16,16 @@ export interface ModeFeatures {
 export const MODES: Record<ModeName, ModeFeatures> = {
   classic: { chat: true, emotes: true, spectate: true, voice: true },
   chaos: { chat: true, emotes: true, spectate: true, voice: true },
+  fog: { chat: true, emotes: true, spectate: true, voice: true },
+  ai: { chat: true, emotes: true, spectate: true, voice: true },
 };
 
 // Board size per mode: Chaos needs room for clones, fingers and smashes
 export const BOARDS: Record<ModeName, BoardOptions> = {
   classic: { width: 5, height: 5 },
   chaos: { width: 7, height: 7 },
+  fog: { width: 5, height: 5 },
+  ai: { width: 5, height: 5 },
 };
 
 // Games without a mode (older code paths) count as Classic

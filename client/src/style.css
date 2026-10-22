@@ -15,3 +15,5 @@
 /* Pause banner: keep equal 24px gaps above and below on smaller screens (main-stage top padding is smaller there) */
 @media(max-width:900px){.pause-request{margin-top:-11px}}@media(max-width:620px){.pause-request{margin-top:-8px}}
 .result-actions{display:grid;gap:10px}
+
+.tile-fog{background:#414843}.tile-fog .terrain{filter:grayscale(1) brightness(.48);opacity:.82}
