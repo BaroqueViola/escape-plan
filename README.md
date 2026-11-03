@@ -6,9 +6,6 @@ turns. Optional modes include Chaos (7×7, classes and 20-second turns), Fog of 
 Custom Map, and VS AI. The server owns movement, turn deadlines, scores, and
 rematches; the browser renders server state.
 
-See [docs/REQUIREMENTS_AUDIT.md](docs/REQUIREMENTS_AUDIT.md) for the fundamental
-implementation checklist, verification results, and current limitations.
-
 ## Development
 
 New here? [docs/TWO_COMPUTER_SETUP.md](docs/TWO_COMPUTER_SETUP.md) walks through running
