@@ -104,7 +104,7 @@
 
     /* Games: one card per room (two players each) */
     .games { grid-column: 1 / -1; }
-    .game-list { display: grid; grid-template-columns: repeat(auto-fill, minmax(320px, 1fr)); gap: 18px; }
+    .game-list { display: grid; grid-template-columns: repeat(auto-fill, minmax(min(100%, 440px), 1fr)); gap: 18px; }
     .game { background: var(--panel-dark); border: 1px solid #53604c; }
     .game-head { display: flex; justify-content: space-between; align-items: center; gap: 10px; padding: 11px 14px; border-bottom: 1px solid var(--line-soft); }
     .game-head strong { font-family: var(--display); font-size: 22px; letter-spacing: .03em; }
@@ -122,7 +122,10 @@
     .no-games { color: var(--dim); font-size: 12px; padding: 16px 14px; background: var(--panel-dark); border: 1px solid #53604c; }
 
     /* Watch: live board of one game */
-    .watch-button { margin-left: 10px; background: var(--panel); border: 1px solid #77826b; color: var(--text); font-size: 9px; letter-spacing: .1em; padding: 5px 8px; }
+    .game-head { flex-wrap: wrap; }
+    .game-head > div:first-child { white-space: nowrap; }
+    .game-head > div:last-child { display: flex; align-items: center; gap: 6px; flex-wrap: nowrap; margin-left: auto; }
+    .watch-button { margin-left: 4px; white-space: nowrap; background: var(--panel); border: 1px solid #77826b; color: var(--text); font-size: 9px; letter-spacing: .1em; padding: 5px 8px; }
     .watch-button:hover, .watch-button.active { background: var(--gold); color: #182019; border-color: var(--gold); }
     .game.watching { border-color: var(--gold); box-shadow: inset 3px 0 var(--gold); }
     /* Chaos details: mode badge, classes, ability state, Chaos board in the watch view */
@@ -181,7 +184,7 @@
     .watch-timer strong { font-family: var(--display); font-size: 60px; line-height: 1; }
     .watch-timer span { font-size: 11px; color: var(--muted); }
     .watch-note { margin-top: 10px; color: var(--muted); font-size: 11px; }
-    @media (max-width: 760px) { .watch { grid-template-columns: 1fr; } .watch > * { grid-column: auto !important; } }
+    .watch-info .slot strong { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 
     /* Chat, emotes, spectators, voice */
     .social { grid-column: 1 / -1; display: grid; grid-template-columns: minmax(260px, .8fr) minmax(0, 1.2fr); gap: 25px; }
@@ -271,6 +274,8 @@
       .login-body h1 { font-size: 44px; }
       .stat strong { font-size: 64px; }
     }
+    /* Stack the live-watch panel when it is too narrow for board + info side by side */
+    @media (max-width: 1000px) { .watch { grid-template-columns: 1fr; } .watch-board { max-width: 420px; } .watch > * { grid-column: auto !important; } }
   </style>
 </head>
 <body>
