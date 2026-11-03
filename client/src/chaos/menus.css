@@ -38,8 +38,8 @@
 .custom-map-form .primary-button{grid-column:1/-1}
 .custom-map-form .custom-save{grid-column:1/-1;width:max-content}
 .menu-card.soon{opacity:.5;box-shadow:none}
-.menu-art{display:flex;gap:10px;align-items:flex-end;min-height:80px;padding:6px 0}
-.menu-art img{width:72px;height:72px;image-rendering:pixelated}
+.menu-art{display:flex;gap:8px;align-items:flex-end;justify-content:center;align-self:stretch;min-width:0;max-width:100%;min-height:80px;padding:6px 0}
+.menu-art img{flex:0 1 72px;min-width:0;width:72px;max-width:calc(50% - 4px);height:auto;aspect-ratio:1/1;object-fit:contain;image-rendering:pixelated}
 .menu-note{color:#8fa196;font-size:11px;line-height:1.6;margin:14px 0 0}
 .pixel-sprite{image-rendering:pixelated;display:block;flex:none}
 .class-layout{display:grid;grid-template-columns:minmax(0,.9fr) minmax(0,1.1fr);gap:22px;align-items:start}
@@ -144,3 +144,5 @@
 .board-frame.board-theme-ai{background:#0b1c1f;box-shadow:0 0 0 2px #2f9aa3,8px 8px 0 #071315}.board-theme-ai .board{background:#0f2427}
 .board-theme-ai .terrain{filter:hue-rotate(65deg) saturate(1.6)}
 .board-theme-ai .tile-legal:after{border-color:#46d6e0;box-shadow:inset 0 0 12px #46d6e070}
+/* Mode cards: titles reserve two lines so the art lines up across all five cards */
+@media(min-width:1101px){.menu-cards.five .menu-card{padding:20px 16px}.menu-cards.five .menu-card strong{min-height:2em}}
