@@ -52,7 +52,7 @@ function legalDirections(state: GameState | null, info: MatchInfo | null): Direc
   });
 }
 
-function Board({ state, info, legal, chaos }: { state: GameState; info: MatchInfo; legal: Direction[]; chaos?: BoardChaos }) {
+function Board({ state, info, legal, chaos, theme }: { state: GameState; info: MatchInfo; legal: Direction[]; chaos?: BoardChaos; theme?: string }) {
   const from = state.positions[info.you.role];
   const terrain = state.mode === 'chaos' ? '-chaos' : '';
   const targets = new Set(state.chaos?.blind ? [] : legal.map((direction) => {
@@ -84,7 +84,7 @@ function Board({ state, info, legal, chaos }: { state: GameState; info: MatchInf
   const prisonerBadge = !c ? null : c.stunned.prisoner > 0 ? `STUNNED · ${c.stunned.prisoner}`
     : c.illusion > 0 ? `ILLUSION · ${c.illusion}` : c.locked > 0 ? 'POWER STOLEN' : null;
   const wardenClass = state.classes?.warden ? CLASS_INFO[state.classes.warden].name : 'The warden';
-  return <div className={`board-frame${blind ? ' blind' : ''}${c?.inVoid ? ' in-void' : ''}`}>
+  return <div className={`board-frame${theme ? ` board-theme-${theme}` : ''}${blind ? ' blind' : ''}${c?.inVoid ? ' in-void' : ''}`}>
     <div className="board" role="img" aria-label={`${state.board.width} by ${state.board.height} map. Warden at column ${state.positions.warden.x + 1}, row ${state.positions.warden.y + 1}. ${hidden ? `${(c?.clones.length ?? 0) + 1} Narutos on the map, one of them real.` : `Prisoner at column ${state.positions.prisoner.x + 1}, row ${state.positions.prisoner.y + 1}.`} Tunnel marked by a glowing portal.`} style={{ gridTemplateColumns: `repeat(${state.board.width}, 1fr)` }}>
       {state.board.cells.map((tile, index) => {
         const x = index % state.board.width;
@@ -153,6 +153,7 @@ export default function App() {
   const pendingName = useRef('');
   const socket = useRef<GameSocket | null>(null);
   const [welcome, setWelcome] = useState('');
+  const [online, setOnline] = useState<string[]>([]);
   const [info, setInfo] = useState<MatchInfo | null>(null);
   const [state, setState] = useState<GameState | null>(null);
   const [result, setResult] = useState<MatchResult | null>(null);
@@ -183,7 +184,7 @@ export default function App() {
       if (pendingName.current) client.emit('player:join', pendingName.current);
     });
     client.on('disconnect', (reason) => {
-      setConnected(false); setJoined(false); setInfo(null); setState(null); setResult(null); setReadyStatus(null); setPauseStatus(null); setLeavingMatch(false); setConfirmQuit(false);
+      setConnected(false); setOnline([]); setJoined(false); setInfo(null); setState(null); setResult(null); setReadyStatus(null); setPauseStatus(null); setLeavingMatch(false); setConfirmQuit(false);
       setQueued(null); setCustomSettings(null); setPicking(null); setPickSide(null);
       if (kickedRef.current) {
         kickedRef.current = false;
@@ -202,6 +203,7 @@ export default function App() {
       setKickedReason(reason);
     });
     client.on('connect_error', () => setNotice('Cannot reach the game server. Retrying…'));
+    client.on('lobby:state', setOnline);
     client.on('player:welcome', (message) => { setWelcome(message); setJoined(true); setNotice(''); });
     client.on('lobby:customSettings', setCustomSettings);
     client.on('player:rejected', (message) => { pendingName.current = ''; setNotice(message); });
@@ -369,6 +371,8 @@ export default function App() {
   // Chaos turns the whole page purple: from picking Chaos in the menu, through the queue and the game
   const chaosTheme = info ? info.mode === 'chaos' : watching ? watching.mode === 'chaos'
     : queued ? queued.mode === 'chaos' : menu === 'chaos' || menu === 'side' || menu === 'class';
+  // Board colours per mode (Chaos has its own tile art)
+  const boardTheme = chaosTheme ? undefined : info?.mode === 'ai' ? 'ai' : queued?.mode === 'fog' ? 'fog' : queued?.board ? 'custom' : 'classic';
   const modeLabel = chaosTheme ? 'CHAOS · ABILITIES' : info?.mode === 'ai' ? 'VS AI' : queued?.mode === 'fog' ? 'FOG OF WAR' : queued?.board ? 'CUSTOM MAP' : 'CLASSIC';
   const menus = menu === 'mode' ? <ModePicker onPick={(mode) => mode === 'chaos' ? setMenu('chaos') : queueFor(mode)} onCustom={() => setMenu('custom')} onAi={() => socket.current?.emit('player:playAi')} />
     : menu === 'custom' ? <CustomMapPicker onStart={queueCustom} onSave={saveCustomSettings} onBack={() => setMenu('mode')} isHost={customSettings?.isHost ?? false} ready={customSettings !== null} host={customSettings?.host ?? null} board={customSettings?.board ?? { width: 5, height: 5, obstacleDensity: 20 }} />
@@ -418,14 +422,15 @@ export default function App() {
               <button className="small-button" onClick={social.leave}>LEAVE ✕</button>
               <KeyList emoteCount={myEmotes.length} chat={social.features.chat} /></>} />
         </aside>
-      </div> : (!shownState || !shownInfo) && !queued ? menus
+      </div> : (!shownState || !shownInfo) && !queued ? <div className="lobby-stack">{menus}<OnlineList names={online} me={pendingName.current || nickname.trim()} /></div>
       : !shownState || !shownInfo ? <div className="lobby-stack"><section className="lobby-panel panel">
         <div className="lobby-title"><span className="eyebrow accent">{queued?.mode === 'chaos' ? 'CHAOS · ABILITIES' : queued?.board ? `CUSTOM · ${queued.board.width} × ${queued.board.height} · ${queued.board.obstacleDensity}% WALLS` : 'CLASSIC'} · LOBBY</span><h2>{welcome || 'Welcome.'}</h2><p>{queued?.mode === 'chaos' ? `Waiting for a ${queued.side === 'warden' ? 'prisoner' : 'warden'} to join.` : queued?.mode === 'custom' ? 'Waiting for another custom mode player. Custom mode uses Classic rules.' : 'Waiting for another player.'}</p><button className="small-button ghost" onClick={leaveQueue}>◂ {queued?.mode === 'custom' ? 'CHANGE SETTINGS' : queued?.mode === 'chaos' ? 'CHANGE CLASS' : 'CHANGE MODE'}</button></div>
         <div className="lobby-list"><div className="list-heading"><span>YOUR MATCH</span><strong>1/2</strong></div><div className="lobby-player"><span className="slot">01</span>{queued?.cls ? <PixelSprite name={CLASS_INFO[queued.cls].sprite} size={36} /> : <img src="/assets/prisoner.svg" alt="" />}<strong>{pendingName.current || nickname.trim()} (you){queued?.cls ? ` · ${CLASS_INFO[queued.cls].name}` : ''}</strong></div><div className="empty-slot"><span className="slot">02</span><span className="loading-block" />Waiting for another player...</div></div>
       </section>
+      <OnlineList names={online} me={pendingName.current || nickname.trim()} />
       {social.features.spectate && <SpectateList games={social.liveGames} onWatch={social.watch} />}
       </div> : <div className="game-layout">
-        <section className="game-panel panel"><div className="game-topline"><span className="eyebrow accent">{modeLabel} · {shownState.board.width} × {shownState.board.height}</span><span className="match-badge">{shownState.status === 'finished' ? 'FINISHED' : waitingReady ? 'GET READY' : paused ? 'PAUSED' : myTurn ? 'YOUR TURN' : `${shownState.turnNickname}'S TURN`}</span></div><div className="board-area"><BoardStage state={shownState} bubbles={social.bubbles} board={<Board state={shownState} info={shownInfo} legal={chaosControls.targeting ? [] : legal} chaos={chaosControls.board} />} /></div><div className="board-footer"><span><i className="legend-dot wall" /> WALL</span><span><i className="legend-dot tunnel" /> TUNNEL</span><span><i className="legend-dot target" /> MOVE</span></div>
+        <section className="game-panel panel"><div className="game-topline"><span className="eyebrow accent">{modeLabel} · {shownState.board.width} × {shownState.board.height}</span><span className="match-badge">{shownState.status === 'finished' ? 'FINISHED' : waitingReady ? 'GET READY' : paused ? 'PAUSED' : myTurn ? 'YOUR TURN' : `${shownState.turnNickname}'S TURN`}</span></div><div className="board-area"><BoardStage state={shownState} bubbles={social.bubbles} board={<Board state={shownState} info={shownInfo} theme={boardTheme} legal={chaosControls.targeting ? [] : legal} chaos={chaosControls.board} />} /></div><div className="board-footer"><span><i className="legend-dot wall" /> WALL</span><span><i className="legend-dot tunnel" /> TUNNEL</span><span><i className="legend-dot target" /> MOVE</span></div>
           {shownState.chaos && <ChaosLog state={shownState} you={shownInfo.you.role} rival={shownInfo.opponent.cls} />}
           {myEmotes.length > 0 && <EmoteStrip emotes={myEmotes} readyAt={social.emoteReadyAt} onSend={social.sendEmote} />}</section>
         <aside className="sidebar"><div className="panel match-panel"><div className="panel-heading"><span className="eyebrow accent">PLAYERS</span></div><PlayerCard name={shownInfo.you.nickname} role={shownInfo.you.role} cls={shownInfo.you.cls} score={shownState.scores[shownInfo.you.nickname] ?? 0} active={myTurn} self /><div className="versus">VS</div><PlayerCard name={shownInfo.opponent.nickname} role={shownInfo.opponent.role} cls={shownInfo.opponent.cls} score={shownState.scores[shownInfo.opponent.nickname] ?? 0} active={!myTurn && shownState.status === 'active'} self={false} /></div>
@@ -477,4 +482,12 @@ export default function App() {
       </div>
     </div>}
   </div>;
+}
+
+// Everyone the server says is online, sent on connect and whenever someone joins or leaves
+function OnlineList({ names, me }: { names: string[]; me: string }) {
+  return <section className="panel online-panel">
+    <div className="panel-heading"><span className="eyebrow accent">ONLINE NOW</span><span>{names.length} CONNECTED</span></div>
+    <div className="online-list">{names.map((name, i) => <div key={name} className="lobby-player"><span className="slot">{String(i + 1).padStart(2, '0')}</span><span className="online-dot" /><strong>{name}{name === me ? ' (you)' : ''}</strong></div>)}</div>
+  </section>;
 }
