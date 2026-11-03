@@ -17,6 +17,17 @@
 .menu-card.mode-chaos{background:#24122f;border-color:#ff3d7f;color:#f6eaff}
 .menu-card.mode-chaos .eyebrow{color:#ff3d7f}
 .menu-card.mode-chaos small{color:#c9b6d8}
+/* Each mode has its own colour */
+.menu-card.mode-classic{background:#28241a;border-color:#d9bc62;color:#f6f0dc}
+.menu-card.mode-classic .eyebrow{color:#d9bc62}.menu-card.mode-classic small{color:#c9bf9f}
+.menu-card.mode-fog{background:#161d2b;border-color:#8fa8d8;color:#e8eeff}
+.menu-card.mode-fog .eyebrow,.menu-card.mode-fog .menu-art{color:#8fa8d8}.menu-card.mode-fog small{color:#a9b5cf}
+.menu-card.mode-custom{background:#2a1c12;border-color:#f08a4b;color:#fff0e4}
+.menu-card.mode-custom .eyebrow,.menu-card.mode-custom .menu-art{color:#f08a4b}.menu-card.mode-custom small{color:#d6b49c}
+.menu-card.mode-ai{background:#0f2427;border-color:#46d6e0;color:#e4fbfd}
+.menu-card.mode-ai .eyebrow,.menu-card.mode-ai .menu-art{color:#46d6e0}.menu-card.mode-ai small{color:#9fc8cb}
+.menu-card.mode-classic:hover:not(:disabled),.menu-card.mode-chaos:hover:not(:disabled),.menu-card.mode-fog:hover:not(:disabled),.menu-card.mode-custom:hover:not(:disabled),.menu-card.mode-ai:hover:not(:disabled){filter:brightness(1.15)}
+.menu-card.mode-fog .menu-art,.menu-card.mode-custom .menu-art,.menu-card.mode-ai .menu-art{font-size:34px;line-height:1}
 .custom-map-form{display:grid;grid-template-columns:1fr 1fr;gap:18px;margin-top:20px}
 .custom-map-form label{display:grid;gap:8px;color:#f2f1df;font-size:13px;font-weight:700}
 .custom-map-form label span,.custom-map-form small{color:#adbcae;font-size:11px;font-weight:400}
@@ -123,3 +134,13 @@
 .demo-progress s{flex:1;height:4px;background:#ffffff1f}
 .demo-progress s.on{background:#ff3d7f}
 @media(max-width:1000px){.class-picker .class-layout,.class-details.with-demo{grid-template-columns:1fr}}
+/* Board colours per mode (Classic keeps the original green; Chaos has its own tiles) */
+.board-frame.board-theme-fog{background:#101624;box-shadow:0 0 0 2px #5b6f99,8px 8px 0 #0b0f19}.board-theme-fog .board{background:#151c2c}
+.board-theme-fog .tile:not(.tile-fog) .terrain{filter:hue-rotate(80deg) saturate(.6)}
+.board-theme-fog .tile-legal:after{border-color:#8fa8d8;box-shadow:inset 0 0 12px #8fa8d870}
+.board-frame.board-theme-custom{background:#1f140c;box-shadow:0 0 0 2px #a8643a,8px 8px 0 #140c07}.board-theme-custom .board{background:#2a1c12}
+.board-theme-custom .terrain{filter:hue-rotate(-95deg) saturate(1.4)}
+.board-theme-custom .tile-legal:after{border-color:#f08a4b;box-shadow:inset 0 0 12px #f08a4b70}
+.board-frame.board-theme-ai{background:#0b1c1f;box-shadow:0 0 0 2px #2f9aa3,8px 8px 0 #071315}.board-theme-ai .board{background:#0f2427}
+.board-theme-ai .terrain{filter:hue-rotate(65deg) saturate(1.6)}
+.board-theme-ai .tile-legal:after{border-color:#46d6e0;box-shadow:inset 0 0 12px #46d6e070}
