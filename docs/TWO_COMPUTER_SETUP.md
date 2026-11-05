@@ -165,7 +165,7 @@ npm start
 ```
 Wait for `Server running at http://localhost:3000`. The **admin page opens
 automatically** in your browser (`http://localhost:3000/admin.html`). The server
-computer is for the admin page only, not for playing.
+computer can also be a player: run `npm run dev:client` there in a second terminal.
 
 **Allow it through the firewall** the first time:
 - **macOS:** click **Allow** on "Allow incoming network connections?".
@@ -183,7 +183,7 @@ If the admin page doesn't open by itself, open `http://localhost:3000/admin.html
 npm run dev:client
 ```
 Then open the address it prints, normally **http://localhost:5173**, and enter
-a nickname. When two players have joined, the match starts.
+a nickname. When two players have joined the same mode and both pressed **Ready**, the match starts.
 
 **Each time the network changes:** redo Part D (new IP, update `config.ts`,
 share it) and restart both sides.
