@@ -31,10 +31,6 @@ that differ between systems are listed separately for each one.
    git clone https://github.com/BaroqueViola/escape-plan.git
    cd escape-plan
    ```
-   Until the work is merged into `main`, switch to the branch that has it:
-   ```
-   git checkout feat/chat-emotes-voice-admin
-   ```
 4. **Install the packages:**
    ```
    npm install
