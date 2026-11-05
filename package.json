@@ -11,12 +11,11 @@
     "url": "git+https://github.com/BaroqueViola/escape-plan.git"
   },
   "license": "ISC",
-  "author": "",
+  "author": "Escape Plan team",
   "type": "module",
   "engines": {
     "node": "^22.12.0 || ^24.0.0 || >=26.0.0"
   },
-  "main": "index.js",
   "workspaces": [
     "packages/game-core",
     "client"
