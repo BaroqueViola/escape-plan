@@ -178,15 +178,15 @@ npm run build       # Build game-core and the client
 
 ## Contributors
 
-| Name | GitHub | What they built |
-| --- | --- | --- |
-| Win Pinyopasakul (Barque) | [@BaroqueViola](https://github.com/BaroqueViola) | Project plan and requirements; core game logic in `game-core` (board, moves, turns, scoring, rematches) and its tests |
-| Poomison Yongyingsakthaworn (Zonnar) | zonarr | Express and Socket.IO server setup; lobby join with Zod nickname checks; server file structure |
-| Natthapat Ratthanarak | Natthapat Ratthanarak | Server game loop: turn timer and broadcasting game state (`game.ts`); per-player views (`view.ts`) |
-| Naiyarat Hanmatheekuna | Naiyarat Hanmatheekuna | Classic React client and the pixel-art assets |
-| Wittapatch Dulayasopapan (Kimyop) | [@Wittapatch](https://github.com/Wittapatch) | Admin page (dashboard, login, reset, activity log, watch, kick); Ready check and pause; Stay; chat, emotes, ElevenLabs voices and spectating; Chaos mode with six classes and Domain Expansion; Online now list; setup guide |
-| Sai Naw Kham (Sai) | sai-naw | Custom maps; fair map checks (two escape routes, start distances); README updates |
-| Zwe Hein Naing (Zwehein) | zwehein | Vs AI bot; Fog of War; server shutdown button |
+| GitHub | What they built |
+| --- | --- |
+| [@BaroqueViola](https://github.com/BaroqueViola) | Project plan and requirements; core game logic in `game-core` (board, moves, turns, scoring, rematches) and its tests |
+| zonarr | Express and Socket.IO server setup; lobby join with Zod nickname checks; server file structure |
+| Natthapat Ratthanarak | Server game loop: turn timer and broadcasting game state (`game.ts`); per-player views (`view.ts`) |
+| Naiyarat Hanmatheekuna | Classic React client and the pixel-art assets |
+| [@Wittapatch](https://github.com/Wittapatch) | Admin page (dashboard, login, reset, activity log, watch, kick); Ready check and pause; Stay; chat, emotes, ElevenLabs voices and spectating; Chaos mode with six classes and Domain Expansion; Online now list; setup guide |
+| sai-naw | Custom maps; fair map checks (two escape routes, start distances); README updates |
+| zwehein | Vs AI bot; Fog of War; server shutdown button |
 
 ## License
 
