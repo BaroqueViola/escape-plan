@@ -181,12 +181,12 @@ npm run build       # Build game-core and the client
 | GitHub | What they built |
 | --- | --- |
 | [@BaroqueViola](https://github.com/BaroqueViola) | Project plan and requirements; core game logic in `game-core` (board, moves, turns, scoring, rematches) and its tests |
-| zonarr | Express and Socket.IO server setup; lobby join with Zod nickname checks; server file structure |
-| Natthapat Ratthanarak | Server game loop: turn timer and broadcasting game state (`game.ts`); per-player views (`view.ts`) |
+| [@zonarr](https://github.com/zonarr) | Express and Socket.IO server setup; lobby join with Zod nickname checks; server file structure |
+| [@Natthapat0](https://github.com/Natthapat0) | Server game loop: turn timer and broadcasting game state (`game.ts`); per-player views (`view.ts`) |
 | Naiyarat Hanmatheekuna | Classic React client and the pixel-art assets |
 | [@Wittapatch](https://github.com/Wittapatch) | Admin page (dashboard, login, reset, activity log, watch, kick); Ready check and pause; Stay; chat, emotes, ElevenLabs voices and spectating; Chaos mode with six classes and Domain Expansion; Online now list; setup guide |
-| sai-naw | Custom maps; fair map checks (two escape routes, start distances); README updates |
-| zwehein | Vs AI bot; Fog of War; server shutdown button |
+| [@ssk153](https://github.com/ssk153) | Custom maps; fair map checks (two escape routes, start distances); README updates |
+| [@zwehein](https://github.com/zwehein) | Vs AI bot; Fog of War; server shutdown button |
 
 ## License
 
