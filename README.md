@@ -1,143 +1,176 @@
 # Escape Plan
 
-Escape Plan includes a pure game engine, Socket.IO server, and a React client
-with original block-style pixel assets. Classic uses a 5×5 board and 10-second
-turns. Optional modes include Chaos (7×7, classes and 20-second turns), Fog of War,
-Custom Map, and VS AI. The server owns movement, turn deadlines, scores, and
-rematches; the browser renders server state.
+A two-player online jailbreak game, built for the Netcentric course
+(Information and Communication Engineering, Year 3, Chulalongkorn University).
 
-## Development
+One player is the **warden**, the other is the **prisoner**, and there is one
+**tunnel**. The prisoner wins by reaching the tunnel; the warden wins by
+catching the prisoner. Players take turns on a small grid, each move is checked
+by the server, and both screens update at the same time.
 
-New here? [docs/TWO_COMPUTER_SETUP.md](docs/TWO_COMPUTER_SETUP.md) walks through running
-the game, getting an ElevenLabs API key for the voices, and playing on several computers.
+![Classic mode on two computers](docs/images/classic.png)
 
-Use Node.js `^22.12.0`, `^24.0.0`, or `>=26.0.0` and npm, as declared in
-`package.json`.
+## Contents
+
+- [How to play](#how-to-play)
+- [Features](#features)
+- [Getting started](#getting-started)
+- [Configuration](#configuration)
+- [Project structure](#project-structure)
+- [Testing](#testing)
+- [More documentation](#more-documentation)
+- [Contributors](#contributors)
+- [License](#license)
+
+## How to play
+
+1. Enter a nickname and pick a mode. The server pairs you with another player
+   who picked the same mode.
+2. Both players press **Ready**. Roles are random in the first match.
+3. The warden moves first, then turns alternate. Move one tile up, down, left
+   or right with the **arrow keys**, **WASD** or the on-screen buttons.
+   Highlighted tiles show where you can go.
+4. Walls block both players. Only the prisoner can enter the tunnel.
+5. Each turn has a timer (10 seconds in Classic). Press **X** to **Stay** and
+   skip a move, at most twice in a row (moving gives the stays back). If the
+   timer runs out, the server uses a stay for you, or makes a random legal
+   move when you have none left.
+6. The prisoner scores a point by reaching the tunnel, the warden by catching
+   the prisoner. If the same position comes up three times, the match is a draw.
+7. A rematch starts when both players vote for it. The winner becomes the
+   warden, and every match gets a new random map.
+
+## Features
+
+### Classic mode (the course requirements)
+
+- Server on port 3000 and clients on other computers in the same network.
+- Nicknames checked by the server, and a live **Online now** list of players.
+- 5×5 board with 19 free tiles, 5 walls and 1 tunnel. Every map is checked
+  before use: the prisoner can reach the tunnel by two separate routes, nobody
+  starts next to it, and the warden starts close enough to give chase.
+- 10-second turns timed by the server, so both screens show the same countdown.
+- Scores, win/lose screens on both computers at once, and rematch voting.
+- An admin page on the server showing connected clients, with a **Reset**
+  button that ends the game and sets every score to 0.
+
+### Extra features
+
+| Feature | What it does |
+| --- | --- |
+| **Vs AI** | Play against a bot that runs on the server. It uses breadth-first search to chase you as the warden, or to head for the tunnel and keep away from you as the prisoner. |
+| **AI voices** | Emotes and chat messages can be spoken aloud in each role's voice using ElevenLabs. Each line is generated once and saved. Without an API key, sound effects play instead. |
+| **Chat and emotes** | Messages of up to 80 characters and three emotes per role (keys **1 2 3**). |
+| **Chaos mode** | A 7×7 board with 20-second turns. Each side picks one of six classes with its own ability, such as shadow clones or Gojo's Domain Expansion timing challenge. See [docs/CHAOS_MODE.md](docs/CHAOS_MODE.md). |
+| **Admin tools** | Password-protected admin page with a live activity feed, mute, chat on/off, live watching of any game, kick with a reason, and a safe server shutdown. |
+| **Fog of War** | You only see the 3×3 square around you. The server removes hidden tiles before sending the map, so nobody can cheat by reading network messages. |
+| **Custom maps** | The host picks the board size (5 to 20 tiles per side) and wall density (5% to 30%). Custom maps pass the same checks as Classic maps. |
+| **Spectating** | While waiting for an opponent, watch live games, chat and send crowd emotes. |
+| **Ready, pause and Stay** | Matches start when both players are ready, pausing needs both players to agree, and Stay lets you skip a move. |
+
+| Chaos mode | Fog of War |
+| --- | --- |
+| ![Chaos mode](docs/images/chaos.png) | ![Fog of War](docs/images/fog-of-war.png) |
+| **Domain Expansion** | **Admin page** |
+| ![Domain Expansion challenge](docs/images/domain-expansion.png) | ![Admin dashboard](docs/images/admin.png) |
+
+## Getting started
+
+You need [Node.js](https://nodejs.org) `^22.12.0`, `^24.0.0` or `>=26.0.0`
+(it includes npm) and [Git](https://git-scm.com). A free
+[ElevenLabs](https://elevenlabs.io) API key is optional; without one, the game
+works and emotes play sound effects instead of AI voices.
+
+Quick start on one computer:
 
 ```sh
+git clone https://github.com/BaroqueViola/escape-plan.git
+cd escape-plan
 npm install
-npm test
-npm run typecheck
-npm run build
+cp .env.example .env   # optional: admin password and ElevenLabs key
+npm start              # terminal 1: game server and admin page (port 3000)
+npm run dev:client     # terminal 2: game page
 ```
 
-For play across computers, set the server computer's LAN URL in
-`client/src/config.ts` on each player computer (e.g. `http://192.168.1.23:3000`).
-Players do not enter an address or port in the game UI. Then:
+Open the address terminal 2 prints (normally <http://localhost:5173>) in two
+browser windows, join with two nicknames, pick the same mode and press **Ready**
+in both.
 
-- **Server computer:** `npm start`. The admin page
-  (`http://localhost:3000/admin.html`) opens automatically to view connected
-  clients, reset scores, or close the server; set `ADMIN_PASSWORD` before starting the server.
-  Set `NO_OPEN=1` to skip opening the browser.
-- **Each player computer:** `npm run dev:client`, then open the URL Vite prints
-  (normally `http://localhost:5173`). Players enter nicknames and choose the same
-  multiplayer mode; the server pairs compatible queued players. Both press
-  **Ready** before the first turn timer starts.
+**[Full setup guide](docs/TWO_COMPUTER_SETUP.md)**: step-by-step instructions
+for macOS, Windows and Linux, including how to get an ElevenLabs API key and
+pick voices, how to play on several computers over a network, a checklist for
+trying every feature, and troubleshooting.
 
-The server computer can also run a game client: run `npm run dev:client` in a
-second terminal and open its URL alongside the admin page. This supports the
-assignment setup with one server/player computer and a second client-only
-computer. Express serves the admin page, assets and voice clips; it does not
-serve the built React game page at `/`.
+## Configuration
 
-Step-by-step instructions for macOS, Windows and Linux are in
-[docs/TWO_COMPUTER_SETUP.md](docs/TWO_COMPUTER_SETUP.md).
+All settings go in `.env` on the server computer (copy `.env.example`; see the
+[setup guide](docs/TWO_COMPUTER_SETUP.md)). `.env` is in `.gitignore`; never commit it.
 
-For client hot reload, run `npm run dev` and `npm run dev:client` in separate
-terminals, then open the URL Vite prints. With `SERVER_URL = ''` (the checked-in
-default), the browser connects to its own origin and Vite proxies Socket.IO and
-voice requests to `localhost:3000`. For remote player computers, set `SERVER_URL`
-to the server's LAN URL; an empty value would target each computer's own local
-server through its Vite proxy. If the server's `PORT` changes, also update the
-configured URL or Vite proxy target as appropriate.
+| Variable | Default | Purpose |
+| --- | --- | --- |
+| `ADMIN_PASSWORD` | `admin123` | Password for the admin page. Change it before a real session. |
+| `PORT` | `3000` | Server port. If you change it, also update `SERVER_URL` and the Vite proxy. |
+| `NO_OPEN` | not set | Set to `1` to stop the admin page opening automatically. |
+| `ELEVENLABS_API_KEY` | empty | Turns on AI voices. Without it the game uses sound effects. |
+| `ELEVENLABS_VOICE_WARDEN`, `ELEVENLABS_VOICE_PRISONER` | George, Rachel | Voice IDs for each role. Free plans may need voices from your own library. |
+| `VOICE_DAILY_CREDITS`, `VOICE_MONTHLY_CREDITS` | `300`, `9000` | Caps on ElevenLabs credits. |
 
-Controls: Arrow keys or WASD, or the on-screen direction buttons. Press **X** or
-use **Stay** to skip movement, at most twice consecutively per character; moving
-refills that allowance. Highlighted destinations show the client's predicted
-legal moves; the server validates every submitted move. The countdown uses the
-server's published time and deadline. At zero, the server uses a remaining stay;
-only when none remain does it make a random legal move. Both players can agree
-to pause, and both must press Resume to continue.
+`SERVER_URL` in `client/src/config.ts` is empty by default. The browser then
+connects to its own computer, and Vite forwards Socket.IO and voice requests
+to `localhost:3000`. That only works when the server runs on the same computer.
 
-The npm workspace `@escape-plan/game-core` exposes an ESM entry point and generated
-TypeScript declarations. Build before importing it from Node.js:
+## Project structure
 
-```js
-import { createSession, startMatch, move } from '@escape-plan/game-core';
-
-const unwrap = result => {
-  if (!result.ok) throw new Error(result.error.code);
-  return result.value;
-};
-
-// Production adapters supply their own clock and randomness.
-let session = unwrap(createSession(['alice', 'bob']));
-session = unwrap(startMatch(session, 0, Math.random, { width: 5, height: 5 }));
-const result = move(session, session.match.turn.playerId, 'up', 100);
-if (result.ok) session = result.value;
-else console.log(result.error.code); // The chosen direction may be blocked.
+```text
+escape-plan/
+├── packages/game-core/   Game rules (TypeScript), shared by server and client
+├── server/               Node.js + Express + Socket.IO server
+│   ├── server.ts         Entry point: HTTP server, admin page, sockets
+│   ├── lobby.ts          Nicknames, matchmaking, online list
+│   ├── game.ts           Turns, timers, results, rematches
+│   ├── view.ts           What each player is allowed to see (Fog, Chaos)
+│   ├── ai.ts             Vs AI bot
+│   ├── social.ts         Chat, emotes, spectating
+│   ├── voice.ts          ElevenLabs voices and caching
+│   ├── admin.ts          Admin login and moderation
+│   └── schema.ts         Zod checks for every client message
+├── client/               React + Vite game page, and admin.html
+├── docs/                 Setup guide and feature notes
+└── project_requirements/ Course requirements and project plan
 ```
 
-## Core API
+The server is in charge: clients only send inputs such as "move up", and the
+server checks every action against the rules in `game-core` before sending
+each player their view of the game.
 
-All state types are readonly. Functions return new state without modifying inputs.
-Fallible calls return `{ ok: true, value }` or `{ ok: false, error: { code } }`.
-Coordinates are zero-based; board cells are row-major (`y * width + x`).
-Player IDs are opaque, distinct, nonempty strings; nickname handling belongs to
-the server's lobby layer.
+## Testing
 
-| Function | Contract |
+```sh
+npm test            # Vitest unit tests (game-core and server views)
+npm run typecheck   # TypeScript checks for every package
+npm run build       # Build game-core and the client
+```
+
+## More documentation
+
+- [docs/TWO_COMPUTER_SETUP.md](docs/TWO_COMPUTER_SETUP.md): full setup guide
+- [docs/SOCIAL_FEATURES.md](docs/SOCIAL_FEATURES.md): chat, emotes, voice, spectating and admin moderation
+- [docs/CHAOS_MODE.md](docs/CHAOS_MODE.md): Chaos classes, abilities and Domain Expansion
+- [docs/GAME_CORE_API.md](docs/GAME_CORE_API.md): `game-core` functions and rules for developers
+- [project_requirements/](project_requirements/): course requirements and plan
+
+## Contributors
+
+| GitHub | What they built |
 | --- | --- |
-| `createSession([playerA, playerB])` | Creates an empty two-player session with zero scores. |
-| `generateMap(rng, options?)` | Generates a valid map and starts; defaults to 5×5 and stops after 1,000 failed candidates. |
-| `validateMap(map, obstacleDensity?)` | Checks dimensions, composition (20% obstacles by default), connected free cells, tunnel reachability, distinct playable starts, and starting-position fairness constraints. |
-| `tileAt(board, coordinate)` | Returns a tile, or `undefined` outside the board. |
-| `legalMoves(board, position, role)` | Returns legal directions and target coordinates without considering turn ownership. |
-| `startMatch(session, now, rng, options?, warden?, classes?)` | Requires an empty session; generates the board, randomises roles unless a warden is supplied, and starts the warden's turn. Classes enable Chaos rules. |
-| `move(session, playerId, direction, now, rng?)` | Validates and applies an active player's move before the deadline. |
-| `stay(session, playerId, now, rng?)` | Consumes one remaining stay and passes the turn without moving. |
-| `resolveTimeout(session, now, rng)` | At or after expiry, consumes a stay if available, otherwise applies a random legal move; an unanswered Chaos Void challenge ends in capture. |
-| `restartTurn(session, now, durationMs?)` | Restarts the active player's deadline using the mode's duration, or a supplied remaining duration when resuming. |
-| `voteRematch(session, playerId, accept, now, rng, startWhenAgreed?)` | Replaces a finished-match vote; two yes votes normally create a new match with the winner as warden (random roles after a draw). Pass `false` to record votes without starting. |
-| `nextMatch(session, now, rng, warden, options?, classes?)` | Starts a new match from a finished session with an explicit warden, retaining scores. |
-| `useAbility(session, playerId, ability, now, rng?)` | Validates and applies a Chaos ability. |
-| `resetSession(session)` | Returns an empty session, preserving identities and clearing scores. |
+| [@BaroqueViola](https://github.com/BaroqueViola) | Project plan and requirements; core game logic in `game-core` (board, moves, turns, scoring, rematches) and its tests |
+| [@zonarr](https://github.com/zonarr) | Express and Socket.IO server setup; lobby join with Zod nickname checks; server file structure |
+| [@Natthapat0](https://github.com/Natthapat0) | Server game loop: turn timer and broadcasting game state (`game.ts`); per-player views (`view.ts`) |
+| Naiyarat Hanmatheekuna | Classic React client and the pixel-art assets |
+| [@Wittapatch](https://github.com/Wittapatch) | Admin page (dashboard, login, reset, activity log, watch, kick); Ready check and pause; Stay; chat, emotes, ElevenLabs voices and spectating; Chaos mode with six classes and Domain Expansion; Online now list; setup guide |
+| [@ssk153](https://github.com/ssk153) | Custom maps; fair map checks (two escape routes, start distances); README updates |
+| [@zwehein](https://github.com/zwehein) | Vs AI bot; Fog of War; server shutdown button |
 
-Dimensions must be integers from 5 to 20 in each direction. Obstacles occupy
-`floor(width * height * obstacleDensity / 100)` cells; density defaults to 20%
-and supports integer percentages from 5% to 30%. One cell is a tunnel, and the
-rest are free (19 free, 5 obstacles and 1 tunnel on the default 5×5 board).
-The generator connects all free cells and makes the tunnel reachable; both
-starting cells are free, distinct, and have a legal opening move.
-Validation also requires two independent prisoner-to-tunnel routes, a minimum
-starting separation and distance from the tunnel, and a warden start close
-enough to contest the race to the exit. Custom Map settings are controlled by
-the earliest joined player who is still connected.
+## License
 
-The engine never reads the clock or schedules a timer. `now` is a finite,
-nonnegative timestamp in milliseconds; active actions cannot predate the current
-turn's start. Classic, Custom Map, Fog of War and VS AI turns last 10,000
-milliseconds (10 seconds); normal Chaos turns last 20,000 milliseconds. Chaos's
-Void challenge has a separate 1,500 ms intro plus a 10,000 ms challenge deadline.
-A move exactly at the deadline
-is rejected with `TURN_EXPIRED`; a timeout exactly at the deadline is accepted.
-An early timeout returns `TIMEOUT_NOT_DUE` without drawing randomness or changing
-state. Random generators must return finite values in `[0, 1)`.
-
-Capture occurs when either character moves onto the other's cell, awarding the
-warden one point. Tunnel entry awards the prisoner one point. Finished matches
-have an outcome and rematch votes, but no active turn. Additional actions cannot
-increment scores again. Rematches retain scores and board dimensions. If map
-generation fails when the second vote is submitted, retain the previous session
-and retry that vote; no partial state change is returned.
-
-A third occurrence of the same position, next role, stay allowances and
-persistent Chaos state ends the match in a draw without changing scores.
-For Custom Map rematches, the current automatic rematch path retains dimensions
-but regenerates with the default 20% obstacle density; it does not retain a
-non-default custom density. VS AI next rounds swap roles rather than assigning
-the previous winner as warden. Use Classic for the assignment baseline.
-
-The caller must retain only successful transitions and serialise their application.
-Socket identity, request deduplication, reconnect handling, timer scheduling,
-admin controls, and UI are outside this package.
+[MIT](LICENSE)
