@@ -1,93 +1,86 @@
 # Escape Plan: setup guide (macOS, Windows, Linux)
 
-How to install Escape Plan, turn on the ElevenLabs voices, and run it either on
-one computer (for testing) or on several computers over the same network (for
-the real demo). What each feature does is in
-[SOCIAL_FEATURES.md](SOCIAL_FEATURES.md).
+Everything you need to run Escape Plan yourself: installing it, turning on the
+ElevenLabs AI voices, and playing on one computer or several. What each feature
+does is in [SOCIAL_FEATURES.md](SOCIAL_FEATURES.md) and [CHAOS_MODE.md](CHAOS_MODE.md).
 
-In the two-computer setup, one computer is the **server** and runs the game
-server on port 3000. Every **player** laptop runs the game page itself and
-connects to the server's IP, which is hard-coded in `client/src/config.ts`.
-Nobody types an IP or port in the browser.
+Follow these steps in order to run Escape Plan on your own computer(s). It works
+on macOS, Windows and Linux. The AI voices are optional: without an ElevenLabs
+key, everything else works and emotes play sound effects instead.
 
-Any computer can be the server or a player, on any operating system. Commands
-that differ between systems are listed separately for each one.
+## What you need
 
----
+- **Node.js** `^22.12.0`, `^24.0.0` or `>=26.0.0` (the 24 LTS release is fine).
+  Download it from <https://nodejs.org>; it includes `npm`.
+- **Git**, from <https://git-scm.com> (macOS may offer to install it the first
+  time you run `git`).
+- **A modern browser** such as Chrome, Edge, Firefox or Safari.
+- **Optional:** a free [ElevenLabs](https://elevenlabs.io) account for the AI voices.
+- **For more than one computer:** all computers on the same network. A phone
+  hotspot is the most reliable choice.
 
-## Part A: one-time setup (every computer)
+Check that Node.js and npm are installed. Open a terminal (macOS: Terminal,
+Windows: PowerShell) and run:
 
-1. **Install Node.js** version 22.12 or newer (24 LTS is fine) from
-   https://nodejs.org. This also installs `npm`.
-   Check it in a terminal (macOS: Terminal, Windows: PowerShell, Linux: any terminal):
-   ```
-   node -v
-   npm -v
-   ```
-2. **Install Git** from https://git-scm.com. macOS may offer to install it when
-   you first run `git`.
-3. **Download the project:**
-   ```
-   git clone https://github.com/BaroqueViola/escape-plan.git
-   cd escape-plan
-   ```
-4. **Install the packages:**
-   ```
-   npm install
-   ```
-   Run `npm install` again after any `git pull` that adds packages.
-   Install on each computer itself; never copy `node_modules` between computers.
-
----
-
-## Part B: the `.env` file and ElevenLabs voices (server computer only)
-
-Settings and secrets live in a file called `.env`. Only the computer that runs
-`npm start` needs it; player laptops don't. It is in `.gitignore`, so it never
-goes to GitHub.
-
-### 1. Create `.env`
-
-```
-cp .env.example .env
+```sh
+node -v    # should print v22.12 or newer
+npm -v
 ```
 
-On Windows (Command Prompt) use `copy .env.example .env`.
+## Step 1: Download the code and install packages
 
-Open it to edit (on a Mac: `open -e .env`). The game works without changing
-anything: emotes play plain sound effects and chat is text only. Fill in the
-ElevenLabs key (next step) to hear voices.
+```sh
+git clone https://github.com/BaroqueViola/escape-plan.git
+cd escape-plan
+npm install
+```
 
-`ADMIN_PASSWORD` in `.env` is the admin page password (default `admin123`).
+No Git? On the GitHub page click **Code → Download ZIP**, unzip it, open a
+terminal in the unzipped folder and run `npm install`.
+
+Do this on **every** computer you will use. Run `npm install` on each computer
+itself; never copy the `node_modules` folder between computers.
+
+## Step 2: Create your `.env` file (server computer only)
+
+Settings and secrets live in a file called `.env` in the `escape-plan` folder.
+Only the computer that runs the server needs it. Copy the example file:
+
+```sh
+cp .env.example .env          # macOS / Linux
+copy .env.example .env        # Windows (Command Prompt)
+```
+
+Open `.env` in any text editor (on a Mac: `open -e .env`) and change
+`ADMIN_PASSWORD` to your own password for the admin page. The default is
+`admin123`.
 
 > On a Mac, Finder hides files that start with a dot. Press **Cmd + Shift + .**
-> in Finder to see `.env`.
+> in Finder to see `.env`. The file is in `.gitignore`, so it is never committed.
 
-### 2. Get an ElevenLabs API key (optional)
+## Step 3: Get an ElevenLabs API key (optional, for AI voices)
 
-The free plan gives 10,000 credits a month. The game uses about half a credit
-per character and saves every clip, so normal testing uses very little.
-Menu names on the ElevenLabs site change from time to time; if a label below
-looks different, look for the closest match.
+The free plan gives 10,000 credits a month. The game saves every voice line it
+makes and caps its own use (300 credits a day by default), so normal play uses
+very little. ElevenLabs sometimes renames its menus; if a label looks different,
+pick the closest match.
 
 1. Sign up for a free account at <https://elevenlabs.io> and open the app.
-2. Open **Developers → API Keys** (in the left sidebar, or from your profile menu).
-3. Click **Create API Key**, name it `escape-plan`, and give it **Text to Speech**
-   access (no other access is needed).
-4. Copy the key right away; it is only shown once.
+2. Go to **Developers → API Keys** (in the left sidebar or your profile menu).
+3. Click **Create API Key**, name it `escape-plan`, and give it **Text to
+   Speech** access. Nothing else is needed.
+4. Copy the key straight away; it is shown only once.
 5. Paste it into `.env` after the `=`, with no spaces or quotes:
 
    ```
    ELEVENLABS_API_KEY=sk_your_key_here
    ```
 
-### 3. Pick voices your plan can use
+**Pick two voices.** Free accounts often can't use the default voices through the
+API (you would see an error **402**), so choose your own:
 
-The default voices may not be available to free accounts through the API
-(ElevenLabs then answers **402**, see Troubleshooting). To choose your own:
-
-1. In ElevenLabs open **Voices → My Voices** and pick two voices from the
-   default list (avoid the Voice Library / Explore tab on the free plan).
+1. In ElevenLabs, open **Voices → My Voices** and pick two voices from the
+   default list. Avoid the Voice Library / Explore tab on the free plan.
 2. On each voice, open the **⋯** menu and choose **Copy voice ID**.
 3. Add them to `.env`:
 
@@ -96,101 +89,70 @@ The default voices may not be available to free accounts through the API
    ELEVENLABS_VOICE_PRISONER=second_voice_id
    ```
 
-Never paste the key into the code, chat, Discord or a commit. If it leaks,
-delete it on the API Keys page and make a new one.
+Never put the key in the code, a chat or a commit. If it leaks, delete it on the
+API Keys page and make a new one. After changing `.env`, restart the server.
 
-After changing `.env`, stop the server with **Ctrl + C** and run `npm start` again.
+## Step 4: Play on one computer (quick test)
 
----
+Leave `client/src/config.ts` as it is (`export const SERVER_URL = '';`) and open
+two terminals in the `escape-plan` folder.
 
-## Part C: quick test on one computer
-
-Handy for trying things out before the demo. Leave `client/src/config.ts` as
-`export const SERVER_URL = '';` and use two terminals in the `escape-plan` folder.
-
-**Terminal 1: the server**
+```sh
+npm start              # terminal 1: game server on port 3000
+npm run dev:client     # terminal 2: game page
 ```
-npm start
-```
-The admin page opens at <http://localhost:3000/admin.html>. Log in with
-`ADMIN_PASSWORD`.
 
-**Terminal 2: the game page**
-```
-npm run dev:client
-```
-Open the address it prints (usually <http://localhost:5173>) in three browser
-windows (make one a private window), then follow Part F.
+1. Wait for `Server running at http://localhost:3000`. The admin page opens at
+   <http://localhost:3000/admin.html>; log in with your `ADMIN_PASSWORD`.
+   (Set `NO_OPEN=1` in `.env` to stop it opening automatically.)
+2. Open the address terminal 2 prints, normally <http://localhost:5173>, in two
+   browser windows. Make one of them a private window.
+3. Enter a different nickname in each window, choose the same mode, and press
+   **Ready** in both. The match starts.
+4. Click once on each page: browsers block sound until you do.
 
----
+To stop, press **Ctrl + C** in each terminal.
 
-## Part D: before each session on several computers (on the server computer)
+## Step 5: Play on several computers
 
-### 1. Connect every computer to the same network
-Use the same Wi-Fi, or better, a **phone hotspot**. University Wi-Fi often
-blocks laptops from reaching each other.
+One computer runs the **server** (and can also be a player). The other
+computers are **players** and only run the game page.
 
-### 2. Find the server computer's IP address
+1. **Connect every computer to the same network.** Use a phone hotspot if you
+   can: university and public Wi-Fi often stop laptops from reaching each other.
+2. **Find the server computer's IP address:**
 
-| System  | Command | What to look for |
-|---------|---------|------------------|
-| macOS   | `ipconfig getifaddr en0` | Prints e.g. `192.168.1.23`. If it prints nothing, try `en1`. |
-| Windows | `ipconfig` | The **IPv4 Address** under the *Wireless LAN adapter Wi-Fi* section. |
-| Linux   | `hostname -I` | Use the first address, e.g. `192.168.1.23`. |
+   | System | Command | What to look for |
+   | --- | --- | --- |
+   | macOS | `ipconfig getifaddr en0` | e.g. `192.168.1.23` (try `en1` if it prints nothing) |
+   | Windows | `ipconfig` | **IPv4 Address** under *Wireless LAN adapter Wi-Fi* |
+   | Linux | `hostname -I` | The first address |
 
-The IP usually starts with `192.168.`, `10.` or `172.`. Ignore `127.0.0.1`,
-because that is only the computer itself.
+   Ignore `127.0.0.1`; that only means "this computer".
+3. **Put that address in `client/src/config.ts` on every computer**, keeping
+   `http://` and `:3000`:
 
-### 3. Put the IP in the code
-Edit `client/src/config.ts`:
-```ts
-export const SERVER_URL = 'http://192.168.1.23:3000';
-```
-Keep the `http://` and the `:3000`.
+   ```ts
+   export const SERVER_URL = 'http://192.168.1.23:3000';
+   ```
 
-### 4. Get the same file onto every player computer
-Either:
-- **push and pull:**
-  - server computer: `git add client/src/config.ts`, then `git commit -m "Set demo server IP"`, then `git push`
-  - each player computer: `git pull`
-- **or by hand:** type the same line into `client/src/config.ts` on each player computer.
+   Players never type an address in the game; it comes from this file.
+4. **Start the server** on the server computer with `npm start`. The first time,
+   allow it through the firewall:
+   - **macOS:** click **Allow** on "Allow incoming network connections?" (or
+     System Settings → Network → Firewall → Options, and allow `node`).
+   - **Windows:** in the Windows Defender Firewall pop-up for Node.js, tick
+     **Private networks** and click **Allow access**, and set the Wi-Fi network
+     to *Private*.
+   - **Linux:** if `ufw` is on, run `sudo ufw allow 3000/tcp`.
+5. **Start the game page on each player computer** with `npm run dev:client`,
+   open the address it prints, enter a nickname and pick a mode. To also play
+   on the server computer, run `npm run dev:client` there in a second terminal.
 
----
+If the network changes, the server's IP usually changes too: repeat steps 2–3
+and restart everything.
 
-## Part E: start everything on several computers
-
-### Server computer
-```
-npm start
-```
-Wait for `Server running at http://localhost:3000`. The **admin page opens
-automatically** in your browser (`http://localhost:3000/admin.html`). The server
-computer can also be a player: run `npm run dev:client` there in a second terminal.
-
-**Allow it through the firewall** the first time:
-- **macOS:** click **Allow** on "Allow incoming network connections?".
-  If you missed it: System Settings, then Network, then Firewall, then Options, and allow `node`.
-- **Windows:** in the Windows Defender Firewall pop-up for Node.js, tick
-  **Private networks** and click **Allow access**. Also make sure the Wi-Fi is
-  set to a *Private* network (Settings, then Network & internet, then Wi-Fi, then your network, then *Private network*).
-- **Linux:** most desktops have no firewall on by default. If `ufw` is on:
-  `sudo ufw allow 3000/tcp`.
-
-If the admin page doesn't open by itself, open `http://localhost:3000/admin.html`.
-
-### Each player computer
-```
-npm run dev:client
-```
-Then open the address it prints, normally **http://localhost:5173**, and enter
-a nickname. When two players have joined the same mode and both pressed **Ready**, the match starts.
-
-**Each time the network changes:** redo Part D (new IP, update `config.ts`,
-share it) and restart both sides.
-
----
-
-## Part F: try everything
+## Step 6: Try everything
 
 Use two player windows and a third window (or laptop) as a spectator.
 Click once anywhere on each page first: browsers block sound until you do.
@@ -215,16 +177,14 @@ npm test
 npm run typecheck
 ```
 
----
-
 ## Troubleshooting
 
 | Problem | Fix |
 |---|---|
-| Player laptops can't connect | Check that everyone is on the same network, the IP in `config.ts` is the server's current IP, and the firewall allows `node` (Part E). Try a phone hotspot. |
+| Player laptops can't connect | Check that everyone is on the same network, the IP in `config.ts` is the server's current IP, and the firewall allows `node` (Step 5). Try a phone hotspot. |
 | Admin page says **NO API KEY** | `ELEVENLABS_API_KEY` is empty in `.env`, or the server was not restarted after editing it. |
 | **PAUSED · ElevenLabs answered 401** | The key is wrong or was deleted. Make a new one. |
-| **PAUSED · ElevenLabs answered 402** | Your plan can't use that voice (or credits ran out). Pick your own voices (Part B, step 3) and restart. |
+| **PAUSED · ElevenLabs answered 402** | Your plan can't use that voice (or credits ran out). Pick your own voices (Step 3) and restart. |
 | Voice stopped after an error | The server pauses voice for 5 minutes after an ElevenLabs error. Restart `npm start` to retry straight away. |
 | Daily cap reached | Voice turns off until tomorrow (`VOICE_DAILY_CREDITS`, default 300). |
 | No sound at all | Click the page once, and check the **🔊 SOUND ON** button in the top bar. |
