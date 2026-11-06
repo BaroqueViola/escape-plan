@@ -163,7 +163,7 @@ npm run build       # Build game-core and the client
 
 | GitHub | What they built |
 | --- | --- |
-| [@BaroqueViola](https://github.com/BaroqueViola) | Project plan and requirements; core game logic in `game-core` (board, moves, turns, scoring, rematches) and its tests |
+| [@BaroqueViola](https://github.com/BaroqueViola) | Project plan and requirements; core game logic in `game-core` (board, moves, turns, scoring, rematches) and its tests. Advanced game logic planning, including map validation, obstacle density and placement cases, Dijkstra's algorithm, and Fog of War |
 | [@zonarr](https://github.com/zonarr) | Express and Socket.IO server setup; lobby join with Zod nickname checks; server file structure |
 | [@Natthapat0](https://github.com/Natthapat0) | Server game loop: turn timer and broadcasting game state (`game.ts`); per-player views (`view.ts`) |
 | Naiyarat Hanmatheekuna | Classic React client and the pixel-art assets |
