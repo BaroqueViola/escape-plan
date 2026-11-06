@@ -157,7 +157,6 @@ npm run build       # Build game-core and the client
 - [docs/SOCIAL_FEATURES.md](docs/SOCIAL_FEATURES.md): chat, emotes, voice, spectating and admin moderation
 - [docs/CHAOS_MODE.md](docs/CHAOS_MODE.md): Chaos classes, abilities and Domain Expansion
 - [docs/GAME_CORE_API.md](docs/GAME_CORE_API.md): `game-core` functions and rules for developers
-- [project_requirements/](project_requirements/): course requirements and plan
 
 ## Contributors
 
